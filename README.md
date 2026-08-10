@@ -14,6 +14,17 @@ A polished everyday notepad with a concealed, encrypted private workspace.
 - Keep the unlocked key in memory only and auto-lock after five minutes of inactivity
 - Preview encrypted text, images, and PDFs; decrypt other files only when downloading
 
+## Version 1.1 features
+
+Six productivity and privacy additions are included:
+
+1. **Note folders** — create folders, assign notes, and filter the notebook by folder.
+2. **Formatting and checklists** — apply bold, italic, bullets, checkboxes, and inline-code Markdown from the editor toolbar.
+3. **Flexible note sorting** — sort by last updated, creation date, or title while pinned notes stay first.
+4. **Encrypted vault folders** — file new items into encrypted folders, filter by folder, and move existing items without exposing folder names in storage.
+5. **Passphrase rotation** — change the vault passphrase from the unlocked Security panel; every item is atomically re-encrypted with a fresh key.
+6. **Encrypted backup and restore** — export the raw encrypted vault as a `.qnvault` backup and restore it from the concealed Settings panel. The backup still requires its original passphrase.
+
 ## Run locally
 
 ```bash
@@ -31,7 +42,7 @@ npm run preview
 ## Set up the concealed private workspace
 
 1. Open **Settings**.
-2. At the bottom, click the ordinary **Quiet Notes · Version 1.0.0** row five times.
+2. At the bottom, click the ordinary **Quiet Notes · Version 1.1.0** row five times.
 3. Set and confirm a passphrase of at least eight characters.
 4. Close Settings.
 5. Create a completely blank new note.

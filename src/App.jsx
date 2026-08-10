@@ -2,23 +2,30 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArrowLeft,
+  ArrowUpDown,
+  Bold,
   Check,
   ChevronRight,
   Clock3,
+  Code2,
+  DatabaseBackup,
   Download,
   File,
   FileImage,
   FileText,
+  Folder,
   FolderLock,
+  FolderPlus,
   HardDrive,
-  Image,
+  Italic,
+  KeyRound,
+  List,
+  ListChecks,
   Lock,
-  Menu,
   Moon,
   MoreHorizontal,
   NotebookPen,
   Palette,
-  Paperclip,
   Pin,
   Plus,
   Search,
@@ -42,6 +49,7 @@ import {
   putNote,
   putVaultRecord,
   replaceAllNotes,
+  replaceVaultWithConfig,
   setMeta,
 } from './db';
 import {
@@ -50,6 +58,7 @@ import {
   decryptVaultContent,
   decryptVaultMetadata,
   encryptVaultRecord,
+  reencryptVaultRecord,
   textToBytes,
   unlockVault,
 } from './crypto';
@@ -66,12 +75,13 @@ function isPotentialTriggerBody(body = '') {
   return !line.includes('\n') && (TRIGGER_PREFIX.startsWith(line) || line.startsWith(TRIGGER_PREFIX));
 }
 
-function makeNote() {
+function makeNote(folderId = '') {
   const now = Date.now();
   return {
     id: crypto.randomUUID(),
     title: '',
     body: '',
+    folderId,
     createdAt: now,
     updatedAt: now,
     pinned: false,
@@ -123,6 +133,68 @@ function downloadBlob(blob, name) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
+function bytesToBase64(value) {
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function serializeEnvelope(envelope) {
+  return { iv: bytesToBase64(envelope.iv), cipher: bytesToBase64(envelope.cipher) };
+}
+
+function deserializeEnvelope(envelope) {
+  if (!envelope?.iv || !envelope?.cipher) throw new Error('Invalid encrypted envelope.');
+  return { iv: base64ToBytes(envelope.iv), cipher: base64ToBytes(envelope.cipher).buffer };
+}
+
+function serializeVaultBackup(config, records) {
+  return {
+    app: 'Quiet Notes Vault',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    config: {
+      ...config,
+      salt: bytesToBase64(config.salt),
+      check: serializeEnvelope(config.check),
+    },
+    records: records.map((record) => ({
+      id: record.id,
+      addedAt: record.addedAt,
+      metadata: serializeEnvelope(record.metadata),
+      content: serializeEnvelope(record.content),
+    })),
+  };
+}
+
+function deserializeVaultBackup(backup) {
+  if (backup?.app !== 'Quiet Notes Vault' || backup.version !== 1 || !Array.isArray(backup.records)) {
+    throw new Error('Invalid vault backup.');
+  }
+  const config = {
+    ...backup.config,
+    salt: base64ToBytes(backup.config.salt),
+    check: deserializeEnvelope(backup.config.check),
+  };
+  const records = backup.records.map((record) => ({
+    id: record.id,
+    addedAt: record.addedAt,
+    metadata: deserializeEnvelope(record.metadata),
+    content: deserializeEnvelope(record.content),
+  }));
+  return { config, records };
+}
+
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -154,9 +226,12 @@ function SettingsModal({
   theme,
   setTheme,
   notes,
+  folders,
   onImport,
   vaultConfigured,
   onVaultConfigured,
+  onExportVaultBackup,
+  onImportVaultBackup,
   notify,
 }) {
   const [versionTaps, setVersionTaps] = useState(0);
@@ -164,6 +239,7 @@ function SettingsModal({
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
   const [saving, setSaving] = useState(false);
   const importRef = useRef(null);
+  const vaultImportRef = useRef(null);
 
   useEffect(() => {
     if (!open) {
@@ -177,7 +253,7 @@ function SettingsModal({
 
   const exportNotes = () => {
     const cleanNotes = notes.map(({ triggerEligible, ...note }) => note);
-    const payload = JSON.stringify({ app: 'Quiet Notes', version: 1, exportedAt: new Date().toISOString(), notes: cleanNotes }, null, 2);
+    const payload = JSON.stringify({ app: 'Quiet Notes', version: 2, exportedAt: new Date().toISOString(), folders, notes: cleanNotes }, null, 2);
     downloadBlob(new Blob([payload], { type: 'application/json' }), `quiet-notes-${new Date().toISOString().slice(0, 10)}.json`);
     notify('Notes exported');
   };
@@ -257,14 +333,23 @@ function SettingsModal({
                     <input className="text-input" type="password" autoComplete="new-password" value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} placeholder="Type it again" />
                   </label>
                   <button className="primary-button full-width" disabled={saving}>{saving ? 'Creating…' : 'Create private space'}</button>
+                  <button type="button" className="secondary-button full-width restore-standalone" onClick={() => vaultImportRef.current?.click()}><DatabaseBackup size={16} /> Restore encrypted backup</button>
+                  <input ref={vaultImportRef} hidden type="file" accept="application/json,.json,.qnvault" onChange={onImportVaultBackup} />
                 </form>
               ) : (
-                <div className="configured-vault">
-                  <div className="configured-row">
-                    <span className="status-dot" />
-                    <div><strong>Private space enabled</strong><small>Encrypted with AES-GCM</small></div>
+                <div className="configured-vault-wrap">
+                  <div className="configured-vault">
+                    <div className="configured-row">
+                      <span className="status-dot" />
+                      <div><strong>Private space enabled</strong><small>Encrypted with AES-GCM</small></div>
+                    </div>
+                    <button className="danger-text-button" onClick={eraseVault}><Trash2 size={15} /> Erase private space</button>
                   </div>
-                  <button className="danger-text-button" onClick={eraseVault}><Trash2 size={15} /> Erase private space</button>
+                  <div className="settings-actions vault-backup-actions">
+                    <button className="secondary-button" onClick={onExportVaultBackup}><DatabaseBackup size={16} /> Export encrypted backup</button>
+                    <button className="secondary-button" onClick={() => vaultImportRef.current?.click()}><Upload size={16} /> Restore backup</button>
+                    <input ref={vaultImportRef} hidden type="file" accept="application/json,.json,.qnvault" onChange={onImportVaultBackup} />
+                  </div>
                 </div>
               )}
               <div className="security-note"><Lock size={14} /> Losing the passphrase means losing access. There is no recovery or cloud copy.</div>
@@ -273,7 +358,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.0.0</span>
+            <span>Version 1.1.0</span>
           </button>
         </div>
       </section>
@@ -288,27 +373,33 @@ function FileTypeIcon({ item, size = 21 }) {
   return <File size={size} />;
 }
 
-function PrivateNoteDialog({ open, onClose, onSave, busy }) {
+function PrivateNoteDialog({ open, onClose, onSave, busy, folders, defaultFolder }) {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
+  const [folder, setFolder] = useState('');
 
   useEffect(() => {
     if (open) {
       setName('');
       setText('');
+      setFolder(defaultFolder || '');
     }
-  }, [open]);
+  }, [open, defaultFolder]);
 
   if (!open) return null;
   return (
     <div className="modal-backdrop vault-dialog-backdrop" onMouseDown={onClose}>
-      <form className="small-dialog" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(name, text); }}>
+      <form className="small-dialog" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(name, text, folder); }}>
         <header className="modal-header">
           <div><span className="eyebrow">Encrypted item</span><h2>New private note</h2></div>
           <button type="button" className="icon-button" onClick={onClose}><X size={20} /></button>
         </header>
         <label className="field-label">Name
           <input autoFocus className="text-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Note name" maxLength={120} />
+        </label>
+        <label className="field-label">Encrypted folder
+          <input className="text-input" list="vault-folder-options" value={folder} onChange={(event) => setFolder(event.target.value)} placeholder="Unfiled or type a new folder" maxLength={60} />
+          <datalist id="vault-folder-options">{folders.map((folderName) => <option key={folderName} value={folderName} />)}</datalist>
         </label>
         <label className="field-label">Content
           <textarea className="text-input private-note-input" value={text} onChange={(event) => setText(event.target.value)} placeholder="Write something private…" />
@@ -338,12 +429,48 @@ function PreviewDialog({ preview, onClose }) {
   );
 }
 
-function Vault({ encryptionKey, onLock, notify }) {
+function SecurityDialog({ open, onClose, onRotate, busy }) {
+  const [passphrase, setPassphrase] = useState('');
+  const [confirmPassphrase, setConfirmPassphrase] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setPassphrase('');
+      setConfirmPassphrase('');
+    }
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <div className="modal-backdrop vault-dialog-backdrop" onMouseDown={onClose}>
+      <form className="small-dialog" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onRotate(passphrase, confirmPassphrase); }}>
+        <header className="modal-header">
+          <div><span className="eyebrow">Security</span><h2>Change passphrase</h2></div>
+          <button type="button" className="icon-button" onClick={onClose}><X size={20} /></button>
+        </header>
+        <p className="settings-copy">Every private item will be re-encrypted with a fresh key. Your typing shortcut will use the new passphrase immediately.</p>
+        <label className="field-label">New passphrase
+          <input autoFocus className="text-input" type="password" autoComplete="new-password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} placeholder="At least 8 characters" />
+        </label>
+        <label className="field-label">Confirm new passphrase
+          <input className="text-input" type="password" autoComplete="new-password" value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} placeholder="Type it again" />
+        </label>
+        <div className="security-note"><ShieldCheck size={14} /> The update is applied atomically after all items are successfully re-encrypted.</div>
+        <button className="primary-button full-width" disabled={busy}>{busy ? 'Re-encrypting…' : 'Change passphrase'}</button>
+      </form>
+    </div>
+  );
+}
+
+function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
+  const [folderFilter, setFolderFilter] = useState('all');
+  const [destinationFolder, setDestinationFolder] = useState('');
   const [noteDialog, setNoteDialog] = useState(false);
+  const [securityDialog, setSecurityDialog] = useState(false);
   const [preview, setPreview] = useState(null);
   const fileRef = useRef(null);
 
@@ -387,7 +514,11 @@ function Vault({ encryptionKey, onLock, notify }) {
     };
   }, [onLock]);
 
-  const visibleItems = useMemo(() => items.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())), [items, query]);
+  const folders = useMemo(() => [...new Set(items.map((item) => item.folder?.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [items]);
+  const visibleItems = useMemo(() => items.filter((item) => {
+    const matchesFolder = folderFilter === 'all' || (folderFilter === 'unfiled' ? !item.folder : item.folder === folderFilter);
+    return matchesFolder && item.name.toLowerCase().includes(query.toLowerCase());
+  }), [items, query, folderFilter]);
   const totalSize = items.reduce((sum, item) => sum + (item.size || 0), 0);
 
   const saveFiles = async (event) => {
@@ -405,6 +536,7 @@ function Vault({ encryptionKey, onLock, notify }) {
           name: file.name,
           type: file.type || 'application/octet-stream',
           kind: 'file',
+          folder: destinationFolder.trim(),
           size: file.size,
           addedAt: now,
           updatedAt: now,
@@ -422,7 +554,7 @@ function Vault({ encryptionKey, onLock, notify }) {
     }
   };
 
-  const savePrivateNote = async (name, text) => {
+  const savePrivateNote = async (name, text, folder) => {
     if (!name.trim()) return;
     setBusy(true);
     try {
@@ -433,6 +565,7 @@ function Vault({ encryptionKey, onLock, notify }) {
         name: name.trim(),
         type: 'text/plain',
         kind: 'note',
+        folder: folder.trim(),
         size: content.byteLength,
         addedAt: now,
         updatedAt: now,
@@ -490,11 +623,51 @@ function Vault({ encryptionKey, onLock, notify }) {
     }
   };
 
+  const moveItem = async (item) => {
+    const folder = window.prompt('Move to encrypted folder (leave blank for Unfiled):', item.folder || '');
+    if (folder === null) return;
+    setBusy(true);
+    try {
+      const content = await decryptItem(item);
+      const metadata = { ...item, folder: folder.trim().slice(0, 60), updatedAt: Date.now() };
+      await putVaultRecord(await encryptVaultRecord(encryptionKey, metadata, content));
+      setItems((current) => current.map((entry) => entry.id === item.id ? metadata : entry));
+      notify(metadata.folder ? `Moved to ${metadata.folder}` : 'Moved to Unfiled');
+    } catch (error) {
+      console.error(error);
+      notify('Could not move this item', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const removeItem = async (item) => {
     if (!window.confirm(`Permanently erase “${item.name}”?`)) return;
     await deleteVaultRecord(item.id);
     setItems((current) => current.filter((entry) => entry.id !== item.id));
     notify('Encrypted item erased');
+  };
+
+  const rotatePassphrase = async (passphrase, confirmation) => {
+    if (passphrase.length < 8) return notify('Use at least 8 characters', 'error');
+    if (passphrase.trim() !== passphrase) return notify('Passphrase cannot start or end with a space', 'error');
+    if (passphrase !== confirmation) return notify('Passphrases do not match', 'error');
+
+    setBusy(true);
+    try {
+      const records = await getAllVaultRecords();
+      const { key: newKey, config } = await createVaultConfig(passphrase);
+      const reencrypted = await Promise.all(records.map((record) => reencryptVaultRecord(encryptionKey, newKey, record)));
+      await replaceVaultWithConfig(reencrypted, config);
+      onEncryptionKeyChange(newKey);
+      setSecurityDialog(false);
+      notify('Passphrase changed and items re-encrypted');
+    } catch (error) {
+      console.error(error);
+      notify('Could not change the passphrase', 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -504,7 +677,10 @@ function Vault({ encryptionKey, onLock, notify }) {
           <div className="vault-brand-mark"><FolderLock size={22} /></div>
           <div><span className="eyebrow">Private workspace</span><h1>Secure space</h1></div>
         </div>
-        <button className="lock-button" onClick={onLock}><Lock size={16} /> Lock & close</button>
+        <div className="vault-top-actions">
+          <button className="lock-button" onClick={() => setSecurityDialog(true)}><KeyRound size={16} /> Security</button>
+          <button className="lock-button" onClick={onLock}><Lock size={16} /> Lock & close</button>
+        </div>
       </header>
 
       <section className="vault-hero">
@@ -530,6 +706,18 @@ function Vault({ encryptionKey, onLock, notify }) {
           </div>
         </div>
 
+        <div className="vault-folderbar">
+          <div className="folder-chips" aria-label="Encrypted folders">
+            <button className={folderFilter === 'all' ? 'active' : ''} onClick={() => setFolderFilter('all')}><Folder size={14} /> All</button>
+            <button className={folderFilter === 'unfiled' ? 'active' : ''} onClick={() => setFolderFilter('unfiled')}>Unfiled</button>
+            {folders.map((folderName) => <button key={folderName} className={folderFilter === folderName ? 'active' : ''} onClick={() => setFolderFilter(folderName)}>{folderName}</button>)}
+          </div>
+          <label className="vault-destination"><FolderPlus size={15} /><span>Save new files to</span>
+            <input list="vault-upload-folder-options" value={destinationFolder} onChange={(event) => setDestinationFolder(event.target.value)} placeholder="Unfiled" maxLength={60} />
+            <datalist id="vault-upload-folder-options">{folders.map((folderName) => <option key={folderName} value={folderName} />)}</datalist>
+          </label>
+        </div>
+
         <div className="storage-notice"><HardDrive size={15} /><span><strong>No cloud sync.</strong> Encrypted bytes live in this browser profile and disappear if its site data is cleared.</span></div>
 
         {loading ? (
@@ -540,10 +728,11 @@ function Vault({ encryptionKey, onLock, notify }) {
               <article className="vault-card" key={item.id}>
                 <button className="vault-card-main" onClick={() => openItem(item)}>
                   <div className={`file-icon ${item.type?.startsWith('image/') ? 'image' : ''}`}><FileTypeIcon item={item} /></div>
-                  <div className="file-info"><strong>{item.name}</strong><span>{formatBytes(item.size)} · {formatListDate(item.addedAt)}</span></div>
+                  <div className="file-info"><strong>{item.name}</strong><span>{item.folder ? `${item.folder} · ` : ''}{formatBytes(item.size)} · {formatListDate(item.addedAt)}</span></div>
                   <ChevronRight size={18} />
                 </button>
                 <div className="vault-card-actions">
+                  <button onClick={() => moveItem(item)} aria-label={`Move ${item.name} to folder`}><Folder size={15} /></button>
                   <button onClick={() => downloadItem(item)} aria-label={`Download ${item.name}`}><Download size={15} /></button>
                   <button onClick={() => removeItem(item)} aria-label={`Delete ${item.name}`}><Trash2 size={15} /></button>
                 </div>
@@ -553,13 +742,14 @@ function Vault({ encryptionKey, onLock, notify }) {
         ) : (
           <div className="vault-empty">
             <div className="empty-illustration dark"><Archive size={34} strokeWidth={1.6} /></div>
-            <h3>{query ? 'Nothing matches that search' : 'Your private space is empty'}</h3>
-            <p>{query ? 'Try a different name.' : 'Add a file or create a private note. Everything is encrypted before it is stored.'}</p>
+            <h3>{query || folderFilter !== 'all' ? 'Nothing matches this view' : 'Your private space is empty'}</h3>
+            <p>{query || folderFilter !== 'all' ? 'Try a different search or folder.' : 'Add a file or create a private note. Everything is encrypted before it is stored.'}</p>
           </div>
         )}
       </section>
 
-      <PrivateNoteDialog open={noteDialog} onClose={() => setNoteDialog(false)} onSave={savePrivateNote} busy={busy} />
+      <PrivateNoteDialog open={noteDialog} onClose={() => setNoteDialog(false)} onSave={savePrivateNote} busy={busy} folders={folders} defaultFolder={destinationFolder} />
+      <SecurityDialog open={securityDialog} onClose={() => setSecurityDialog(false)} onRotate={rotatePassphrase} busy={busy} />
       <PreviewDialog preview={preview} onClose={() => setPreview(null)} />
     </main>
   );
@@ -571,6 +761,9 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [folders, setFolders] = useState([]);
+  const [folderFilter, setFolderFilter] = useState('all');
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('quiet-notes-sort') || 'updated');
   const [theme, setTheme] = useState(() => localStorage.getItem('quiet-notes-theme') || 'light');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [vaultConfigured, setVaultConfigured] = useState(false);
@@ -581,6 +774,7 @@ export default function App() {
   const [mobilePane, setMobilePane] = useState('list');
   const toastTimer = useRef(null);
   const triggerAttempt = useRef(0);
+  const bodyInputRef = useRef(null);
 
   const notify = (message, kind = '') => {
     window.clearTimeout(toastTimer.current);
@@ -594,8 +788,12 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    localStorage.setItem('quiet-notes-sort', sortBy);
+  }, [sortBy]);
+
+  useEffect(() => {
     let mounted = true;
-    Promise.all([getAllNotes(), getMeta('vaultConfig')]).then(async ([savedNotes, config]) => {
+    Promise.all([getAllNotes(), getMeta('vaultConfig'), getMeta('noteFolders')]).then(async ([savedNotes, config, savedFolders]) => {
       if (!mounted) return;
       if (!savedNotes.length) {
         const first = makeNote();
@@ -608,6 +806,7 @@ export default function App() {
         setActiveId(savedNotes[0].id);
       }
       setVaultConfigured(Boolean(config));
+      setFolders(Array.isArray(savedFolders) ? savedFolders : []);
       setLoaded(true);
     }).catch((error) => {
       console.error(error);
@@ -617,12 +816,19 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
-  const sortedNotes = useMemo(() => [...notes].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt), [notes]);
+  const sortedNotes = useMemo(() => [...notes].sort((a, b) => {
+    const pinOrder = Number(b.pinned) - Number(a.pinned);
+    if (pinOrder) return pinOrder;
+    if (sortBy === 'created') return b.createdAt - a.createdAt;
+    if (sortBy === 'title') return titleFor(a).localeCompare(titleFor(b));
+    return b.updatedAt - a.updatedAt;
+  }), [notes, sortBy]);
   const visibleNotes = useMemo(() => sortedNotes.filter((note) => {
     if (filter === 'pinned' && !note.pinned) return false;
+    if (folderFilter !== 'all' && (note.folderId || '') !== folderFilter) return false;
     const needle = query.trim().toLowerCase();
     return !needle || `${note.title} ${note.body}`.toLowerCase().includes(needle);
-  }), [sortedNotes, query, filter]);
+  }), [sortedNotes, query, filter, folderFilter]);
   const currentNote = notes.find((note) => note.id === activeId) || null;
 
   useEffect(() => {
@@ -640,7 +846,7 @@ export default function App() {
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [loaded, currentNote?.id, currentNote?.title, currentNote?.body, currentNote?.pinned, currentNote?.updatedAt]);
+  }, [loaded, currentNote?.id, currentNote?.title, currentNote?.body, currentNote?.folderId, currentNote?.pinned, currentNote?.updatedAt]);
 
   useEffect(() => {
     if (!vaultConfigured || !currentNote?.triggerEligible || currentNote.title) return;
@@ -668,7 +874,7 @@ export default function App() {
   }, [currentNote?.body, currentNote?.title, currentNote?.triggerEligible, currentNote?.id, vaultConfigured]);
 
   const createNote = async () => {
-    const note = makeNote();
+    const note = makeNote(folderFilter === 'all' ? '' : folderFilter);
     setNotes((current) => [note, ...current]);
     setActiveId(note.id);
     setFilter('all');
@@ -696,6 +902,51 @@ export default function App() {
     }));
   };
 
+  const createFolder = async (assignToCurrent = false) => {
+    const name = window.prompt('Name this folder:')?.trim();
+    if (!name) return;
+    if (folders.some((folder) => folder.name.toLowerCase() === name.toLowerCase())) return notify('That folder already exists', 'error');
+    const folder = { id: crypto.randomUUID(), name: name.slice(0, 50) };
+    const updated = [...folders, folder];
+    setFolders(updated);
+    await setMeta('noteFolders', updated);
+    if (assignToCurrent && currentNote) updateCurrent('folderId', folder.id);
+    else setFolderFilter(folder.id);
+    notify('Folder created');
+  };
+
+  const applyInlineFormat = (before, after = before, placeholder = 'text') => {
+    if (!currentNote || !bodyInputRef.current) return;
+    const input = bodyInputRef.current;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const selected = currentNote.body.slice(start, end) || placeholder;
+    const replacement = `${before}${selected}${after}`;
+    updateCurrent('body', `${currentNote.body.slice(0, start)}${replacement}${currentNote.body.slice(end)}`);
+    window.setTimeout(() => {
+      input.focus();
+      const selectionStart = start + before.length;
+      input.setSelectionRange(selectionStart, selectionStart + selected.length);
+    });
+  };
+
+  const applyLineFormat = (marker) => {
+    if (!currentNote || !bodyInputRef.current) return;
+    const input = bodyInputRef.current;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const lineStart = currentNote.body.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+    const nextBreak = currentNote.body.indexOf('\n', end);
+    const lineEnd = nextBreak === -1 ? currentNote.body.length : nextBreak;
+    const selected = currentNote.body.slice(lineStart, lineEnd) || 'List item';
+    const replacement = selected.split('\n').map((line) => `${marker}${line}`).join('\n');
+    updateCurrent('body', `${currentNote.body.slice(0, lineStart)}${replacement}${currentNote.body.slice(lineEnd)}`);
+    window.setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(lineStart + marker.length, lineStart + replacement.length);
+    });
+  };
+
   const togglePin = async () => {
     if (!currentNote) return;
     const changed = { ...currentNote, pinned: !currentNote.pinned, updatedAt: Date.now() };
@@ -721,22 +972,67 @@ export default function App() {
     try {
       const parsed = JSON.parse(await file.text());
       if (!Array.isArray(parsed.notes)) throw new Error('Invalid backup');
+      const folderMap = new Map();
+      const importedFolders = Array.isArray(parsed.folders) ? parsed.folders.reduce((result, folder) => {
+        const name = String(folder.name || '').trim().slice(0, 50);
+        if (!name) return result;
+        const existing = [...folders, ...result].find((entry) => entry.name.toLowerCase() === name.toLowerCase());
+        const id = existing?.id || crypto.randomUUID();
+        folderMap.set(folder.id, id);
+        if (!existing) result.push({ id, name });
+        return result;
+      }, []) : [];
       const imported = parsed.notes.map((note) => ({
         id: crypto.randomUUID(),
         title: String(note.title || '').slice(0, 300),
         body: String(note.body || ''),
+        folderId: folderMap.get(note.folderId) || '',
         createdAt: Number(note.createdAt) || Date.now(),
         updatedAt: Date.now(),
         pinned: Boolean(note.pinned),
         triggerEligible: false,
       }));
       const merged = [...imported, ...notes];
-      await replaceAllNotes(merged);
+      const mergedFolders = [...folders, ...importedFolders];
+      await Promise.all([replaceAllNotes(merged), setMeta('noteFolders', mergedFolders)]);
       setNotes(merged);
+      setFolders(mergedFolders);
       setActiveId(imported[0]?.id || activeId);
       notify(`${imported.length} note${imported.length === 1 ? '' : 's'} imported`);
     } catch {
       notify('That file is not a valid Quiet Notes backup', 'error');
+    }
+  };
+
+  const exportVaultBackup = async () => {
+    try {
+      const [config, records] = await Promise.all([getMeta('vaultConfig'), getAllVaultRecords()]);
+      if (!config) return notify('Set up the private space first', 'error');
+      const payload = JSON.stringify(serializeVaultBackup(config, records));
+      downloadBlob(new Blob([payload], { type: 'application/json' }), `quiet-notes-vault-${new Date().toISOString().slice(0, 10)}.qnvault`);
+      notify('Encrypted vault backup exported');
+    } catch (error) {
+      console.error(error);
+      notify('Could not export the encrypted backup', 'error');
+    }
+  };
+
+  const importVaultBackup = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const backup = deserializeVaultBackup(JSON.parse(await file.text()));
+      const passphrase = window.prompt('Enter the backup passphrase to verify it before restoring:');
+      if (passphrase === null) return;
+      if (!await unlockVault(passphrase, backup.config)) throw new Error('Backup passphrase did not match.');
+      if (vaultConfigured && !window.confirm('Replace the current private space with this encrypted backup? Existing private items will be erased.')) return;
+      await replaceVaultWithConfig(backup.records, backup.config);
+      setVaultConfigured(true);
+      notify(`Encrypted backup restored with ${backup.records.length} item${backup.records.length === 1 ? '' : 's'}`);
+    } catch (error) {
+      console.error(error);
+      notify(error.message?.includes('passphrase') ? 'Backup passphrase did not match' : 'That is not a valid Quiet Notes vault backup', 'error');
     }
   };
 
@@ -746,7 +1042,7 @@ export default function App() {
   };
 
   if (view === 'vault' && encryptionKey) {
-    return <><Vault encryptionKey={encryptionKey} onLock={lockVault} notify={notify} /><Toast toast={toast} /></>;
+    return <><Vault encryptionKey={encryptionKey} onEncryptionKeyChange={setEncryptionKey} onLock={lockVault} notify={notify} /><Toast toast={toast} /></>;
   }
 
   return (
@@ -764,11 +1060,24 @@ export default function App() {
         <header className="browser-header">
           <div>
             <span className="eyebrow">My notebook</span>
-            <h1>{filter === 'pinned' ? 'Pinned' : 'All notes'}</h1>
+            <h1>{filter === 'pinned' ? 'Pinned' : folderFilter === 'all' ? 'All notes' : folderFilter === '' ? 'Unfiled' : folders.find((folder) => folder.id === folderFilter)?.name || 'Folder'}</h1>
           </div>
           <button className="new-note-button" onClick={createNote} aria-label="New note"><Plus size={20} /></button>
         </header>
         <label className="search-box"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search notes" /></label>
+        <div className="browser-filters">
+          <label className="compact-select"><Folder size={14} /><select value={folderFilter} onChange={(event) => setFolderFilter(event.target.value)} aria-label="Filter by folder">
+            <option value="all">All folders</option>
+            <option value="">Unfiled</option>
+            {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+          </select></label>
+          <button className="compact-icon-button" onClick={() => createFolder(false)} aria-label="Create folder"><FolderPlus size={15} /></button>
+          <label className="compact-select sort-select"><ArrowUpDown size={14} /><select value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort notes">
+            <option value="updated">Updated</option>
+            <option value="created">Created</option>
+            <option value="title">Title</option>
+          </select></label>
+        </div>
         <div className="note-count">{visibleNotes.length} {visibleNotes.length === 1 ? 'note' : 'notes'}</div>
         <div className="note-list">
           {visibleNotes.map((note) => (
@@ -779,7 +1088,7 @@ export default function App() {
             </button>
           ))}
           {!visibleNotes.length && (
-            <div className="empty-list"><Search size={24} /><strong>No notes here</strong><span>{query ? 'Try another search.' : 'Pin a note to keep it here.'}</span></div>
+            <div className="empty-list"><Search size={24} /><strong>No notes here</strong><span>{query ? 'Try another search.' : folderFilter !== 'all' ? 'Create or move a note into this folder.' : filter === 'pinned' ? 'Pin a note to keep it here.' : 'Create a new note to get started.'}</span></div>
           )}
         </div>
         <button className="mobile-settings" onClick={() => setSettingsOpen(true)}><Settings size={18} /> Settings</button>
@@ -801,8 +1110,23 @@ export default function App() {
             </header>
             <article className="editor-document">
               <input className="title-input" value={currentNote.title} onChange={(event) => updateCurrent('title', event.target.value)} placeholder="Untitled note" maxLength={300} />
-              <div className="note-meta"><Clock3 size={14} /> {formatFullDate(currentNote.updatedAt)}</div>
-              <textarea className="body-input" value={currentNote.body} onChange={(event) => updateCurrent('body', event.target.value)} placeholder="Start writing…" spellCheck="true" />
+              <div className="note-meta">
+                <span><Clock3 size={14} /> {formatFullDate(currentNote.updatedAt)}</span>
+                <label className="note-folder-select"><Folder size={14} /><select value={currentNote.folderId || ''} onChange={(event) => updateCurrent('folderId', event.target.value)} aria-label="Move note to folder">
+                  <option value="">Unfiled</option>
+                  {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                </select></label>
+                <button className="inline-folder-button" onClick={() => createFolder(true)} aria-label="Create and assign folder"><FolderPlus size={14} /></button>
+              </div>
+              <div className="format-toolbar" aria-label="Text formatting">
+                <button onClick={() => applyInlineFormat('**')} title="Bold"><Bold size={16} /></button>
+                <button onClick={() => applyInlineFormat('_')} title="Italic"><Italic size={16} /></button>
+                <button onClick={() => applyLineFormat('- ')} title="Bullet list"><List size={17} /></button>
+                <button onClick={() => applyLineFormat('- [ ] ')} title="Checklist"><ListChecks size={17} /></button>
+                <button onClick={() => applyInlineFormat('`')} title="Inline code"><Code2 size={16} /></button>
+                <span>Markdown formatting</span>
+              </div>
+              <textarea ref={bodyInputRef} className="body-input" value={currentNote.body} onChange={(event) => updateCurrent('body', event.target.value)} placeholder="Start writing…" spellCheck="true" />
               <footer className="editor-footer">
                 <span>{currentNote.body.trim() ? currentNote.body.trim().split(/\s+/).length : 0} words</span>
                 <span>{currentNote.body.length} characters</span>
@@ -820,9 +1144,12 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         notes={notes}
+        folders={folders}
         onImport={importNotes}
         vaultConfigured={vaultConfigured}
         onVaultConfigured={setVaultConfigured}
+        onExportVaultBackup={exportVaultBackup}
+        onImportVaultBackup={importVaultBackup}
         notify={notify}
       />
       <Toast toast={toast} />

@@ -179,6 +179,25 @@ h1, h2, h3, p { margin-top: 0; }
 .empty-list strong { margin-top: 12px; color: var(--text); font-size: 14px; }
 .empty-list span { margin-top: 5px; font-size: 12px; }
 .mobile-settings { display: none; }
+.browser-filters { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.compact-select {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel) 75%, transparent);
+  color: var(--muted);
+}
+.compact-select select { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 10px; cursor: pointer; }
+.compact-select option { background: var(--panel); color: var(--text); }
+.sort-select { flex: 0 1 102px; }
+.compact-icon-button { display: grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--muted); cursor: pointer; }
+.compact-icon-button:hover { color: var(--text); background: var(--accent-soft); }
 
 .editor-pane { position: relative; display: flex; min-width: 0; flex-direction: column; background: var(--panel); overflow: hidden; }
 .editor-toolbar {
@@ -229,7 +248,17 @@ h1, h2, h3, p { margin-top: 0; }
   line-height: 1.12;
 }
 .title-input::placeholder { color: color-mix(in srgb, var(--text) 25%, transparent); }
-.note-meta { display: flex; align-items: center; gap: 6px; margin: 14px 0 34px; color: var(--faint); font-size: 11px; }
+.note-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 14px 0 21px; color: var(--faint); font-size: 11px; }
+.note-meta > span { display: flex; align-items: center; gap: 6px; margin-right: auto; }
+.note-folder-select { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+.note-folder-select select { max-width: 130px; border: 0; outline: 0; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
+.note-folder-select option { background: var(--panel); color: var(--text); }
+.inline-folder-button { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.inline-folder-button:hover { background: var(--panel-soft); color: var(--text); }
+.format-toolbar { display: flex; align-items: center; gap: 4px; margin-bottom: 22px; padding: 6px; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, var(--panel-soft) 60%, transparent); }
+.format-toolbar button { display: grid; place-items: center; width: 31px; height: 29px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.format-toolbar button:hover { background: var(--panel); color: var(--text); }
+.format-toolbar span { margin-left: auto; padding-right: 6px; color: var(--faint); font-size: 9px; }
 .body-input {
   width: 100%;
   flex: 1;
@@ -306,7 +335,11 @@ h1, h2, h3, p { margin-top: 0; }
 .field-label { display: grid; gap: 7px; margin: 13px 0; color: var(--muted); font-size: 11px; font-weight: 600; }
 .text-input { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; outline: 0; background: var(--panel); color: var(--text); font-size: 13px; }
 .text-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.configured-vault-wrap { display: grid; gap: 14px; }
 .configured-vault { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vault-backup-actions { padding-top: 13px; border-top: 1px solid var(--line); }
+.vault-backup-actions .secondary-button { flex: 1; padding-inline: 10px; }
+.restore-standalone { margin-top: 9px; }
 .configured-row { display: flex; align-items: center; gap: 10px; }
 .configured-row > div { display: grid; gap: 2px; }
 .configured-row strong { font-size: 12px; }
@@ -370,6 +403,7 @@ h1, h2, h3, p { margin-top: 0; }
 .vault-brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #d8ad4c; color: #211d13; }
 .vault-brand .eyebrow { color: #7f8f87; }
 .vault-brand h1 { color: white; font-size: 20px; }
+.vault-top-actions { display: flex; gap: 8px; }
 .lock-button { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: #e3e9e6; }
 .lock-button:hover { background: rgba(255,255,255,.08); }
 .vault-hero {
@@ -393,6 +427,15 @@ h1, h2, h3, p { margin-top: 0; }
 .vault-search { width: min(360px, 100%); border-color: rgba(255,255,255,.08); background: rgba(255,255,255,.04); color: #77857d; }
 .vault-search input { color: #edf2ef; }
 .vault-actions { display: flex; gap: 8px; }
+.vault-folderbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 17px; }
+.folder-chips { display: flex; min-width: 0; flex: 1; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.folder-chips::-webkit-scrollbar { display: none; }
+.folder-chips button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; height: 31px; padding: 0 10px; border: 1px solid rgba(255,255,255,.08); border-radius: 99px; background: transparent; color: #7f8c85; font-size: 10px; cursor: pointer; }
+.folder-chips button:hover { color: #dfe6e2; border-color: rgba(255,255,255,.15); }
+.folder-chips button.active { border-color: rgba(218,177,76,.25); background: rgba(218,177,76,.1); color: #e2c270; }
+.vault-destination { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; height: 32px; padding: 0 9px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; color: #78857e; font-size: 9px; }
+.vault-destination input { width: 105px; border: 0; outline: 0; background: transparent; color: #dfe6e2; font-size: 10px; }
+.vault-destination input::placeholder { color: #606c66; }
 .vault-shell .secondary-button { border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.04); color: #e1e7e3; }
 .vault-shell .secondary-button:hover { background: rgba(255,255,255,.08); }
 .storage-notice { display: flex; align-items: center; gap: 9px; margin: 24px 0 16px; padding: 12px 14px; border: 1px solid rgba(227,190,95,.11); border-radius: 10px; background: rgba(227,190,95,.045); color: #89948e; font-size: 10px; line-height: 1.45; }
@@ -422,6 +465,7 @@ h1, h2, h3, p { margin-top: 0; }
 .small-dialog { width: min(480px, 100%); padding: 0 25px 25px; }
 .small-dialog .modal-header { margin: 0 -25px 20px; }
 .private-note-input { min-height: 180px; resize: vertical; line-height: 1.6; }
+.small-dialog .security-note + .primary-button { margin-top: 16px; }
 .preview-dialog { width: min(900px, 100%); background: #161b18; border-color: rgba(255,255,255,.08); color: #eef2f0; }
 .preview-dialog .modal-header { border-color: rgba(255,255,255,.08); }
 .preview-dialog .icon-button { color: #aab3ae; }
@@ -459,6 +503,8 @@ h1, h2, h3, p { margin-top: 0; }
   .editor-actions button:last-child { display: none; }
   .editor-document { width: calc(100% - 36px); padding-top: 38px; }
   .title-input { font-size: 38px; }
+  .note-meta > span { width: 100%; }
+  .format-toolbar span { display: none; }
   .body-input { font-size: 18px; }
   .modal-backdrop { padding: 10px; }
   .settings-modal, .small-dialog, .preview-dialog { max-height: calc(100vh - 20px); border-radius: 17px; }
@@ -470,7 +516,9 @@ h1, h2, h3, p { margin-top: 0; }
   .vault-topbar { height: 70px; padding: 0 18px; }
   .vault-brand .eyebrow { display: none; }
   .vault-brand-mark { width: 38px; height: 38px; }
-  .lock-button { min-height: 36px; padding: 0 11px; }
+  .vault-top-actions { gap: 5px; }
+  .lock-button { width: 36px; min-height: 36px; padding: 0; font-size: 0; }
+  .lock-button svg { width: 16px; height: 16px; }
   .vault-hero { display: block; padding: 47px 20px 36px; }
   .vault-hero h2 { font-size: 40px; }
   .vault-stats { margin-top: 26px; }
@@ -478,6 +526,9 @@ h1, h2, h3, p { margin-top: 0; }
   .vault-toolbar { align-items: stretch; flex-direction: column; }
   .vault-search { width: 100%; }
   .vault-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .vault-folderbar { align-items: stretch; flex-direction: column; }
+  .vault-destination { justify-content: flex-start; }
+  .vault-destination input { flex: 1; width: auto; }
   .storage-notice { align-items: flex-start; }
   .vault-card-actions { opacity: 1; }
 }

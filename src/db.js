@@ -105,3 +105,20 @@ export function deleteVaultRecord(id) {
 export function clearVaultRecords() {
   return withStore('vaultItems', 'readwrite', (store) => requestResult(store.clear()));
 }
+
+export async function replaceVaultWithConfig(records, config) {
+  const db = await openDatabase();
+  const transaction = db.transaction(['vaultItems', 'meta'], 'readwrite');
+  const vaultStore = transaction.objectStore('vaultItems');
+  const metaStore = transaction.objectStore('meta');
+
+  vaultStore.clear();
+  records.forEach((record) => vaultStore.put(record));
+  metaStore.put({ key: 'vaultConfig', value: config });
+
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error || new Error('Vault update was aborted.'));
+  });
+}
