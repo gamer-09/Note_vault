@@ -210,7 +210,7 @@ h1, h2, h3, p { margin-top: 0; }
 }
 .save-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 .saved-dot { width: 6px; height: 6px; border-radius: 99px; background: #68a586; }
-.editor-actions { display: flex; gap: 4px; }
+.editor-actions { position: relative; display: flex; gap: 4px; }
 .editor-actions button, .icon-button {
   display: grid;
   place-items: center;
@@ -224,6 +224,36 @@ h1, h2, h3, p { margin-top: 0; }
 }
 .editor-actions button:hover, .editor-actions button.active, .icon-button:hover { background: var(--panel-soft); color: var(--text); }
 .editor-actions button.active { color: #bf8e1e; }
+.more-menu-wrap { position: relative; }
+.note-more-menu {
+  position: absolute;
+  z-index: 20;
+  top: 43px;
+  right: 0;
+  width: 194px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  animation: lift-in .14s ease;
+}
+.editor-actions .note-more-menu button {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 11px;
+  text-align: left;
+}
+.editor-actions .note-more-menu button:hover { background: var(--panel-soft); }
+.note-more-menu button.danger { color: var(--danger); }
+.note-more-menu i { display: block; height: 1px; margin: 5px 4px; background: var(--line); }
 .mobile-back { display: none; }
 .editor-document {
   display: flex;
@@ -500,7 +530,6 @@ h1, h2, h3, p { margin-top: 0; }
   .editor-toolbar { min-height: 62px; padding: 0 15px; }
   .mobile-back { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: transparent; color: var(--text); }
   .save-state { margin-right: auto; margin-left: 4px; }
-  .editor-actions button:last-child { display: none; }
   .editor-document { width: calc(100% - 36px); padding-top: 38px; }
   .title-input { font-size: 38px; }
   .note-meta > span { width: 100%; }

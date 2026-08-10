@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock3,
   Code2,
+  Copy,
   DatabaseBackup,
   Download,
   File,
@@ -358,7 +359,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.1.0</span>
+            <span>Version 1.1.1</span>
           </button>
         </div>
       </section>
@@ -772,9 +773,11 @@ export default function App() {
   const [saveState, setSaveState] = useState('Saved');
   const [toast, setToast] = useState(null);
   const [mobilePane, setMobilePane] = useState('list');
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const toastTimer = useRef(null);
   const triggerAttempt = useRef(0);
   const bodyInputRef = useRef(null);
+  const moreMenuRef = useRef(null);
 
   const notify = (message, kind = '') => {
     window.clearTimeout(toastTimer.current);
@@ -790,6 +793,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('quiet-notes-sort', sortBy);
   }, [sortBy]);
+
+  useEffect(() => {
+    if (!moreMenuOpen) return undefined;
+    const closeMenu = (event) => {
+      if (!moreMenuRef.current?.contains(event.target)) setMoreMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
+  }, [moreMenuOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -885,6 +897,7 @@ export default function App() {
 
   const selectNote = (id) => {
     setActiveId(id);
+    setMoreMenuOpen(false);
     setMobilePane('editor');
   };
 
@@ -955,8 +968,50 @@ export default function App() {
     notify(changed.pinned ? 'Note pinned' : 'Note unpinned');
   };
 
+  const duplicateCurrent = async () => {
+    if (!currentNote) return;
+    const now = Date.now();
+    const duplicate = {
+      ...currentNote,
+      id: crypto.randomUUID(),
+      title: currentNote.title.trim() ? `${currentNote.title} (copy)` : '',
+      createdAt: now,
+      updatedAt: now,
+      pinned: false,
+      triggerEligible: false,
+    };
+    setNotes((current) => [duplicate, ...current]);
+    setActiveId(duplicate.id);
+    setMoreMenuOpen(false);
+    await putNote(duplicate);
+    notify('Note duplicated');
+  };
+
+  const copyCurrent = async () => {
+    if (!currentNote) return;
+    const text = currentNote.title.trim() ? `${currentNote.title}\n\n${currentNote.body}` : currentNote.body;
+    try {
+      await navigator.clipboard.writeText(text);
+      setMoreMenuOpen(false);
+      notify('Note copied to clipboard');
+    } catch {
+      notify('Clipboard access was blocked', 'error');
+    }
+  };
+
+  const exportCurrent = () => {
+    if (!currentNote) return;
+    const heading = currentNote.title.trim();
+    const text = heading ? `${heading}\n${'='.repeat(Math.min(heading.length, 80))}\n\n${currentNote.body}` : currentNote.body;
+    const filename = `${titleFor(currentNote).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80) || 'note'}.txt`;
+    downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), filename);
+    setMoreMenuOpen(false);
+    notify('Note exported');
+  };
+
   const removeCurrent = async () => {
     if (!currentNote || !window.confirm(`Delete “${titleFor(currentNote)}”?`)) return;
+    setMoreMenuOpen(false);
     await deleteNote(currentNote.id);
     const remaining = notes.filter((note) => note.id !== currentNote.id);
     setNotes(remaining);
@@ -1105,7 +1160,18 @@ export default function App() {
               <div className="editor-actions">
                 <button className={currentNote.pinned ? 'active' : ''} onClick={togglePin} aria-label="Pin note"><Pin size={18} fill={currentNote.pinned ? 'currentColor' : 'none'} /></button>
                 <button onClick={removeCurrent} aria-label="Delete note"><Trash2 size={18} /></button>
-                <button aria-label="More options"><MoreHorizontal size={19} /></button>
+                <div className="more-menu-wrap" ref={moreMenuRef}>
+                  <button className={`more-menu-trigger ${moreMenuOpen ? 'active' : ''}`} onClick={() => setMoreMenuOpen((open) => !open)} onKeyDown={(event) => { if (event.key === 'Escape') setMoreMenuOpen(false); }} aria-label="More options" aria-haspopup="menu" aria-expanded={moreMenuOpen}><MoreHorizontal size={19} /></button>
+                  {moreMenuOpen && (
+                    <div className="note-more-menu" role="menu">
+                      <button role="menuitem" onClick={copyCurrent}><Copy size={16} /><span>Copy note</span></button>
+                      <button role="menuitem" onClick={duplicateCurrent}><FileText size={16} /><span>Duplicate note</span></button>
+                      <button role="menuitem" onClick={exportCurrent}><Download size={16} /><span>Export as text</span></button>
+                      <i />
+                      <button role="menuitem" className="danger" onClick={removeCurrent}><Trash2 size={16} /><span>Delete note</span></button>
+                    </div>
+                  )}
+                </div>
               </div>
             </header>
             <article className="editor-document">

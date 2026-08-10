@@ -25,6 +25,8 @@ Six productivity and privacy additions are included:
 5. **Passphrase rotation** — change the vault passphrase from the unlocked Security panel; every item is atomically re-encrypted with a fresh key.
 6. **Encrypted backup and restore** — export the raw encrypted vault as a `.qnvault` backup and restore it from the concealed Settings panel. The backup still requires its original passphrase.
 
+Version 1.1.1 also activates the editor's **More options** menu with copy, duplicate, text export, and delete actions.
+
 ## Run locally
 
 ```bash
@@ -42,7 +44,7 @@ npm run preview
 ## Set up the concealed private workspace
 
 1. Open **Settings**.
-2. At the bottom, click the ordinary **Quiet Notes · Version 1.1.0** row five times.
+2. At the bottom, click the ordinary **Quiet Notes · Version 1.1.1** row five times.
 3. Set and confirm a passphrase of at least eight characters.
 4. Close Settings.
 5. Create a completely blank new note.
