@@ -367,7 +367,8 @@ h1, h2, h3, p { margin-top: 0; }
 .text-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .configured-vault-wrap { display: grid; gap: 14px; }
 .configured-vault { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.vault-backup-actions { padding-top: 13px; border-top: 1px solid var(--line); }
+.backup-copy { margin: 0; padding-top: 13px; border-top: 1px solid var(--line); }
+.vault-backup-actions { padding-top: 0; }
 .vault-backup-actions .secondary-button { flex: 1; padding-inline: 10px; }
 .restore-standalone { margin-top: 9px; }
 .configured-row { display: flex; align-items: center; gap: 10px; }

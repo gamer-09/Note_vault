@@ -64,6 +64,7 @@ import {
   unlockVault,
 } from './crypto';
 import { useVaultAutoLock } from './useVaultAutoLock';
+import { createPortableVaultArchive, importPortableVaultArchive } from './vaultArchive';
 
 const TRIGGER_PREFIX = 'Password = ';
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -135,68 +136,6 @@ function downloadBlob(blob, name) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
-function bytesToBase64(value) {
-  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
-  let binary = '';
-  for (let index = 0; index < bytes.length; index += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-  }
-  return btoa(binary);
-}
-
-function base64ToBytes(value) {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
-function serializeEnvelope(envelope) {
-  return { iv: bytesToBase64(envelope.iv), cipher: bytesToBase64(envelope.cipher) };
-}
-
-function deserializeEnvelope(envelope) {
-  if (!envelope?.iv || !envelope?.cipher) throw new Error('Invalid encrypted envelope.');
-  return { iv: base64ToBytes(envelope.iv), cipher: base64ToBytes(envelope.cipher).buffer };
-}
-
-function serializeVaultBackup(config, records) {
-  return {
-    app: 'Quiet Notes Vault',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    config: {
-      ...config,
-      salt: bytesToBase64(config.salt),
-      check: serializeEnvelope(config.check),
-    },
-    records: records.map((record) => ({
-      id: record.id,
-      addedAt: record.addedAt,
-      metadata: serializeEnvelope(record.metadata),
-      content: serializeEnvelope(record.content),
-    })),
-  };
-}
-
-function deserializeVaultBackup(backup) {
-  if (backup?.app !== 'Quiet Notes Vault' || backup.version !== 1 || !Array.isArray(backup.records)) {
-    throw new Error('Invalid vault backup.');
-  }
-  const config = {
-    ...backup.config,
-    salt: base64ToBytes(backup.config.salt),
-    check: deserializeEnvelope(backup.config.check),
-  };
-  const records = backup.records.map((record) => ({
-    id: record.id,
-    addedAt: record.addedAt,
-    metadata: deserializeEnvelope(record.metadata),
-    content: deserializeEnvelope(record.content),
-  }));
-  return { config, records };
-}
-
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -232,7 +171,6 @@ function SettingsModal({
   onImport,
   vaultConfigured,
   onVaultConfigured,
-  onExportVaultBackup,
   onImportVaultBackup,
   notify,
 }) {
@@ -335,7 +273,7 @@ function SettingsModal({
                     <input className="text-input" type="password" autoComplete="new-password" value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} placeholder="Type it again" />
                   </label>
                   <button className="primary-button full-width" disabled={saving}>{saving ? 'Creating…' : 'Create private space'}</button>
-                  <button type="button" className="secondary-button full-width restore-standalone" onClick={() => vaultImportRef.current?.click()}><DatabaseBackup size={16} /> Restore encrypted backup</button>
+                  <button type="button" className="secondary-button full-width restore-standalone" onClick={() => vaultImportRef.current?.click()}><DatabaseBackup size={16} /> Restore portable backup</button>
                   <input ref={vaultImportRef} hidden type="file" accept="application/json,.json,.qnvault" onChange={onImportVaultBackup} />
                 </form>
               ) : (
@@ -347,9 +285,9 @@ function SettingsModal({
                     </div>
                     <button className="danger-text-button" onClick={eraseVault}><Trash2 size={15} /> Erase private space</button>
                   </div>
+                  <p className="settings-copy backup-copy">Create portable backups from the unlocked vault. You can restore one here on any browser or device.</p>
                   <div className="settings-actions vault-backup-actions">
-                    <button className="secondary-button" onClick={onExportVaultBackup}><DatabaseBackup size={16} /> Export encrypted backup</button>
-                    <button className="secondary-button" onClick={() => vaultImportRef.current?.click()}><Upload size={16} /> Restore backup</button>
+                    <button className="secondary-button full-width" onClick={() => vaultImportRef.current?.click()}><Upload size={16} /> Restore portable backup</button>
                     <input ref={vaultImportRef} hidden type="file" accept="application/json,.json,.qnvault" onChange={onImportVaultBackup} />
                   </div>
                 </div>
@@ -360,7 +298,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.1.1</span>
+            <span>Version 1.2.0</span>
           </button>
         </div>
       </section>
@@ -464,6 +402,39 @@ function SecurityDialog({ open, onClose, onRotate, busy }) {
   );
 }
 
+function BackupDialog({ open, onClose, onExport, busy }) {
+  const [passphrase, setPassphrase] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setPassphrase('');
+      setConfirmation('');
+    }
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <div className="modal-backdrop vault-dialog-backdrop" onMouseDown={onClose}>
+      <form className="small-dialog" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onExport(passphrase, confirmation); }}>
+        <header className="modal-header">
+          <div><span className="eyebrow">Portable archive</span><h2>Back up private space</h2></div>
+          <button type="button" className="icon-button" onClick={onClose}><X size={20} /></button>
+        </header>
+        <p className="settings-copy">The complete workspace will become one authenticated ciphertext. This archive passphrase will also unlock the restored vault on another device.</p>
+        <label className="field-label">Archive passphrase
+          <input autoFocus className="text-input" type="password" autoComplete="new-password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} placeholder="At least 8 characters" />
+        </label>
+        <label className="field-label">Confirm archive passphrase
+          <input className="text-input" type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder="Type it again" />
+        </label>
+        <div className="security-note"><DatabaseBackup size={14} /> Keep both the archive and its passphrase. There is no recovery if either is lost.</div>
+        <button className="primary-button full-width" disabled={busy}>{busy ? 'Encrypting archive…' : 'Create encrypted backup'}</button>
+      </form>
+    </div>
+  );
+}
+
 function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -473,6 +444,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
   const [destinationFolder, setDestinationFolder] = useState('');
   const [noteDialog, setNoteDialog] = useState(false);
   const [securityDialog, setSecurityDialog] = useState(false);
+  const [backupDialog, setBackupDialog] = useState(false);
   const [preview, setPreview] = useState(null);
   const fileRef = useRef(null);
 
@@ -637,6 +609,26 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
     notify('Encrypted item erased');
   };
 
+  const exportPortableBackup = async (passphrase, confirmation) => {
+    if (passphrase.length < 8) return notify('Use at least 8 characters', 'error');
+    if (passphrase.trim() !== passphrase) return notify('Passphrase cannot start or end with a space', 'error');
+    if (passphrase !== confirmation) return notify('Passphrases do not match', 'error');
+
+    setBusy(true);
+    try {
+      const records = await getAllVaultRecords();
+      const archive = await createPortableVaultArchive({ records, vaultKey: encryptionKey, passphrase });
+      downloadBlob(new Blob([archive], { type: 'application/vnd.quiet-notes.vault+json' }), `quiet-notes-vault-${new Date().toISOString().slice(0, 10)}.qnvault`);
+      setBackupDialog(false);
+      notify(`Portable backup created with ${records.length} item${records.length === 1 ? '' : 's'}`);
+    } catch (error) {
+      console.error(error);
+      notify('Could not create the portable backup', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const rotatePassphrase = async (passphrase, confirmation) => {
     if (passphrase.length < 8) return notify('Use at least 8 characters', 'error');
     if (passphrase.trim() !== passphrase) return notify('Passphrase cannot start or end with a space', 'error');
@@ -667,6 +659,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
           <div><span className="eyebrow">Private workspace</span><h1>Secure space</h1></div>
         </div>
         <div className="vault-top-actions">
+          <button className="lock-button" onClick={() => setBackupDialog(true)}><DatabaseBackup size={16} /> Backup</button>
           <button className="lock-button" onClick={() => setSecurityDialog(true)}><KeyRound size={16} /> Security</button>
           <button className="lock-button" onClick={onLock}><Lock size={16} /> Lock & close</button>
         </div>
@@ -739,6 +732,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
 
       <PrivateNoteDialog open={noteDialog} onClose={() => setNoteDialog(false)} onSave={savePrivateNote} busy={busy} folders={folders} defaultFolder={destinationFolder} />
       <SecurityDialog open={securityDialog} onClose={() => setSecurityDialog(false)} onRotate={rotatePassphrase} busy={busy} />
+      <BackupDialog open={backupDialog} onClose={() => setBackupDialog(false)} onExport={exportPortableBackup} busy={busy} />
       <PreviewDialog preview={preview} onClose={() => setPreview(null)} />
     </main>
   );
@@ -1047,35 +1041,23 @@ export default function App() {
     }
   };
 
-  const exportVaultBackup = async () => {
-    try {
-      const [config, records] = await Promise.all([getMeta('vaultConfig'), getAllVaultRecords()]);
-      if (!config) return notify('Set up the private space first', 'error');
-      const payload = JSON.stringify(serializeVaultBackup(config, records));
-      downloadBlob(new Blob([payload], { type: 'application/json' }), `quiet-notes-vault-${new Date().toISOString().slice(0, 10)}.qnvault`);
-      notify('Encrypted vault backup exported');
-    } catch (error) {
-      console.error(error);
-      notify('Could not export the encrypted backup', 'error');
-    }
-  };
-
   const importVaultBackup = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
     try {
-      const backup = deserializeVaultBackup(JSON.parse(await file.text()));
-      const passphrase = window.prompt('Enter the backup passphrase to verify it before restoring:');
+      const passphrase = window.prompt('Enter the portable backup passphrase:');
       if (passphrase === null) return;
-      if (!await unlockVault(passphrase, backup.config)) throw new Error('Backup passphrase did not match.');
-      if (vaultConfigured && !window.confirm('Replace the current private space with this encrypted backup? Existing private items will be erased.')) return;
-      await replaceVaultWithConfig(backup.records, backup.config);
+      const restored = await importPortableVaultArchive({ serializedArchive: await file.text(), passphrase });
+      if (vaultConfigured && !window.confirm('Replace the current private space with this portable backup? Existing private items will be erased.')) return;
+      await replaceVaultWithConfig(restored.records, restored.config);
       setVaultConfigured(true);
-      notify(`Encrypted backup restored with ${backup.records.length} item${backup.records.length === 1 ? '' : 's'}`);
+      notify(`Portable backup restored with ${restored.records.length} item${restored.records.length === 1 ? '' : 's'}`);
     } catch (error) {
       console.error(error);
-      notify(error.message?.includes('passphrase') ? 'Backup passphrase did not match' : 'That is not a valid Quiet Notes vault backup', 'error');
+      if (error.code === 'AUTH_FAILED') notify('Wrong backup passphrase or modified archive', 'error');
+      else if (error.code?.startsWith('UNSUPPORTED_')) notify(error.message, 'error');
+      else notify('That is not a valid Quiet Notes portable backup', 'error');
     }
   };
 
@@ -1202,7 +1184,6 @@ export default function App() {
         onImport={importNotes}
         vaultConfigured={vaultConfigured}
         onVaultConfigured={setVaultConfigured}
-        onExportVaultBackup={exportVaultBackup}
         onImportVaultBackup={importVaultBackup}
         notify={notify}
       />

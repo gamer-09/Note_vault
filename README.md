@@ -23,9 +23,27 @@ Six productivity and privacy additions are included:
 3. **Flexible note sorting** — sort by last updated, creation date, or title while pinned notes stay first.
 4. **Encrypted vault folders** — file new items into encrypted folders, filter by folder, and move existing items without exposing folder names in storage.
 5. **Passphrase rotation** — change the vault passphrase from the unlocked Security panel; every item is atomically re-encrypted with a fresh key.
-6. **Encrypted backup and restore** — export the raw encrypted vault as a `.qnvault` backup and restore it from the concealed Settings panel. The backup still requires its original passphrase.
+6. **Encrypted backup and restore** — export the complete vault as a portable `.qnvault` archive and restore it from the concealed Settings panel on another browser or device.
 
 Version 1.1.1 also activates the editor's **More options** menu with copy, duplicate, text export, and delete actions.
+
+## Version 1.2 portable archive
+
+An unlocked vault can create a portable backup from the **Backup** button. Filenames, folders, metadata, and contents are serialized inside one AES-256-GCM authenticated ciphertext. Only a forward-compatible format header is visible:
+
+```json
+{
+  "header": {
+    "format": "quiet-notes-vault",
+    "version": 1,
+    "kdf": { "name": "PBKDF2", "hash": "SHA-256", "iterations": 310000, "salt": "…" },
+    "cipher": { "name": "AES-GCM", "keyBits": 256, "tagBits": 128, "iv": "…" }
+  },
+  "ciphertext": "…"
+}
+```
+
+The archive passphrase protects the file and becomes the restored vault's passphrase. Restore is available in the concealed private-workspace Settings on any compatible browser. Unknown format, KDF, or cipher versions are rejected rather than guessed.
 
 ## Run locally
 
@@ -50,7 +68,7 @@ npm test
 ## Set up the concealed private workspace
 
 1. Open **Settings**.
-2. At the bottom, click the ordinary **Quiet Notes · Version 1.1.1** row five times.
+2. At the bottom, click the ordinary **Quiet Notes · Version 1.2.0** row five times.
 3. Set and confirm a passphrase of at least eight characters.
 4. Close Settings.
 5. Create a completely blank new note.
@@ -85,9 +103,10 @@ For stronger OS-level protection, combine this app with full-disk encryption (Bi
 
 ```text
 src/App.jsx       Main notes UI, hidden setup flow, and private workspace
-src/crypto.js     PBKDF2 and AES-GCM helpers
-src/db.js         IndexedDB persistence
-src/styles.css    Responsive desktop/mobile styling
+src/crypto.js        PBKDF2 and AES-GCM helpers
+src/vaultArchive.js  Portable encrypted archive format
+src/db.js            IndexedDB persistence
+src/styles.css       Responsive desktop/mobile styling
 public/sw.js      Offline app-shell cache
 ```
 
