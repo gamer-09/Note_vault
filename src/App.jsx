@@ -298,7 +298,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.2.1</span>
+            <span>Version 1.2.2</span>
           </button>
         </div>
       </section>

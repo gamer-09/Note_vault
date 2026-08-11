@@ -37,8 +37,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { min-width: 320px; min-height: 100%; margin: 0; }
-body { min-height: 100vh; background: var(--bg); overflow: hidden; }
+html, body, #root { min-width: 320px; width: 100%; height: 100%; min-height: 0; margin: 0; }
+body { height: 100vh; height: 100dvh; min-height: 0; background: var(--bg); overflow: hidden; }
 button, input, textarea, select { font: inherit; }
 button { color: inherit; }
 select {
@@ -56,24 +56,30 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .app-shell {
   display: grid;
   grid-template-columns: 84px 350px minmax(0, 1fr);
+  width: 100%;
   height: 100vh;
-  min-height: 620px;
+  height: 100dvh;
+  min-height: 0;
   background: var(--bg);
+  overflow: hidden;
 }
 
 .navigation-rail {
   display: flex;
+  min-height: 0;
   flex-direction: column;
   align-items: center;
   gap: 24px;
-  padding: 25px 12px 20px;
+  padding: 25px 12px max(28px, env(safe-area-inset-bottom));
   background: #242a27;
   color: #d8ddd9;
   border-right: 1px solid rgba(255,255,255,.04);
+  overflow: hidden;
 }
 
 .brand-mark {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
   width: 45px;
   height: 45px;
@@ -84,7 +90,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   box-shadow: 0 8px 22px rgba(231, 184, 79, .18);
 }
 
-.navigation-rail nav { display: grid; gap: 10px; width: 100%; }
+.navigation-rail nav { display: grid; flex: 0 0 auto; gap: 10px; width: 100%; }
 .navigation-rail button {
   display: grid;
   justify-items: center;
@@ -101,7 +107,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .navigation-rail button span { font-size: 10px; font-weight: 600; }
 .navigation-rail button:hover { color: white; background: rgba(255,255,255,.06); }
 .navigation-rail button.active { color: #fff0c5; background: rgba(231,184,79,.13); }
-.navigation-rail .rail-settings { margin-top: auto; }
+.navigation-rail .rail-settings { flex: 0 0 auto; margin-top: auto; margin-bottom: 2px; }
 
 .note-browser {
   display: flex;
@@ -570,6 +576,14 @@ h1, h2, h3, p { margin-top: 0; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+@media (max-height: 700px) and (min-width: 681px) {
+  .navigation-rail { gap: 12px; padding: 14px 10px max(24px, env(safe-area-inset-bottom)); }
+  .brand-mark { width: 40px; height: 40px; margin-bottom: 2px; border-radius: 12px; }
+  .navigation-rail nav { gap: 6px; }
+  .navigation-rail button { gap: 3px; padding: 7px 4px; }
+  .navigation-rail button span { font-size: 9px; }
+}
+
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 74px 310px minmax(0, 1fr); }
   .editor-document { width: calc(100% - 56px); padding-top: 48px; }
@@ -579,7 +593,7 @@ h1, h2, h3, p { margin-top: 0; }
 
 @media (max-width: 680px) {
   body { overflow: auto; }
-  .app-shell { display: block; min-height: 100vh; height: 100vh; }
+  .app-shell { display: block; height: 100vh; height: 100dvh; min-height: 0; }
   .navigation-rail { display: none; }
   .note-browser, .editor-pane { position: absolute; inset: 0; width: 100%; height: 100%; }
   .note-browser { padding: 26px 18px 82px; border: 0; }
