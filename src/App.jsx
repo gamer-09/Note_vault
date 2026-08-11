@@ -63,6 +63,7 @@ import {
   textToBytes,
   unlockVault,
 } from './crypto';
+import { useVaultAutoLock } from './useVaultAutoLock';
 
 const TRIGGER_PREFIX = 'Password = ';
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -475,6 +476,8 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
   const [preview, setPreview] = useState(null);
   const fileRef = useRef(null);
 
+  useVaultAutoLock(onLock);
+
   const loadItems = async () => {
     setLoading(true);
     try {
@@ -499,21 +502,6 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
   }, [preview]);
-
-  useEffect(() => {
-    let timer;
-    const arm = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(onLock, 5 * 60 * 1000);
-    };
-    const events = ['pointerdown', 'keydown', 'mousemove'];
-    events.forEach((eventName) => window.addEventListener(eventName, arm));
-    arm();
-    return () => {
-      window.clearTimeout(timer);
-      events.forEach((eventName) => window.removeEventListener(eventName, arm));
-    };
-  }, [onLock]);
 
   const folders = useMemo(() => [...new Set(items.map((item) => item.folder?.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [items]);
   const visibleItems = useMemo(() => items.filter((item) => {

@@ -41,6 +41,12 @@ npm run build
 npm run preview
 ```
 
+Run the adversarial crypto and session tests with:
+
+```bash
+npm test
+```
+
 ## Set up the concealed private workspace
 
 1. Open **Settings**.

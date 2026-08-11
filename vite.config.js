@@ -11,4 +11,11 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    clearMocks: true,
+    restoreMocks: true,
+    testTimeout: 30_000,
+  },
 });
