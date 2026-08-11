@@ -2,6 +2,8 @@
 
 A polished everyday notepad with a concealed, encrypted private workspace.
 
+For the intended security boundary and explicit limitations, read the [threat model](THREAT_MODEL.md).
+
 ## What it does
 
 - Create, edit, search, pin, and delete ordinary notes
