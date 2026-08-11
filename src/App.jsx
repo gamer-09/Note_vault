@@ -65,6 +65,7 @@ import {
 } from './crypto';
 import { useVaultAutoLock } from './useVaultAutoLock';
 import { createPortableVaultArchive, importPortableVaultArchive } from './vaultArchive';
+import PasswordField from './PasswordField';
 
 const TRIGGER_PREFIX = 'Password = ';
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -266,12 +267,8 @@ function SettingsModal({
               {!vaultConfigured ? (
                 <form onSubmit={setupVault}>
                   <p className="settings-copy">Create the passphrase used by your private typing shortcut. It is verified cryptographically and is never saved as readable text.</p>
-                  <label className="field-label">Passphrase
-                    <input className="text-input" type="password" autoComplete="new-password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} placeholder="At least 8 characters" />
-                  </label>
-                  <label className="field-label">Confirm passphrase
-                    <input className="text-input" type="password" autoComplete="new-password" value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} placeholder="Type it again" />
-                  </label>
+                  <PasswordField label="Passphrase" value={passphrase} onChange={setPassphrase} placeholder="At least 8 characters" />
+                  <PasswordField label="Confirm passphrase" value={confirmPassphrase} onChange={setConfirmPassphrase} placeholder="Type it again" />
                   <button className="primary-button full-width" disabled={saving}>{saving ? 'Creating…' : 'Create private space'}</button>
                   <button type="button" className="secondary-button full-width restore-standalone" onClick={() => vaultImportRef.current?.click()}><DatabaseBackup size={16} /> Restore portable backup</button>
                   <input ref={vaultImportRef} hidden type="file" accept="application/json,.json,.qnvault" onChange={onImportVaultBackup} />
@@ -298,7 +295,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.2.2</span>
+            <span>Version 1.2.3</span>
           </button>
         </div>
       </section>
@@ -389,12 +386,8 @@ function SecurityDialog({ open, onClose, onRotate, busy }) {
           <button type="button" className="icon-button" onClick={onClose}><X size={20} /></button>
         </header>
         <p className="settings-copy">Every private item will be re-encrypted with a fresh key. Your typing shortcut will use the new passphrase immediately.</p>
-        <label className="field-label">New passphrase
-          <input autoFocus className="text-input" type="password" autoComplete="new-password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} placeholder="At least 8 characters" />
-        </label>
-        <label className="field-label">Confirm new passphrase
-          <input className="text-input" type="password" autoComplete="new-password" value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} placeholder="Type it again" />
-        </label>
+        <PasswordField label="New passphrase" value={passphrase} onChange={setPassphrase} placeholder="At least 8 characters" autoFocus />
+        <PasswordField label="Confirm new passphrase" value={confirmPassphrase} onChange={setConfirmPassphrase} placeholder="Type it again" />
         <div className="security-note"><ShieldCheck size={14} /> The update is applied atomically after all items are successfully re-encrypted.</div>
         <button className="primary-button full-width" disabled={busy}>{busy ? 'Re-encrypting…' : 'Change passphrase'}</button>
       </form>
@@ -422,12 +415,8 @@ function BackupDialog({ open, onClose, onExport, busy }) {
           <button type="button" className="icon-button" onClick={onClose}><X size={20} /></button>
         </header>
         <p className="settings-copy">The complete workspace will become one authenticated ciphertext. This archive passphrase will also unlock the restored vault on another device.</p>
-        <label className="field-label">Archive passphrase
-          <input autoFocus className="text-input" type="password" autoComplete="new-password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} placeholder="At least 8 characters" />
-        </label>
-        <label className="field-label">Confirm archive passphrase
-          <input className="text-input" type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder="Type it again" />
-        </label>
+        <PasswordField label="Archive passphrase" value={passphrase} onChange={setPassphrase} placeholder="At least 8 characters" autoFocus />
+        <PasswordField label="Confirm archive passphrase" value={confirmation} onChange={setConfirmation} placeholder="Type it again" />
         <div className="security-note"><DatabaseBackup size={14} /> Keep both the archive and its passphrase. There is no recovery if either is lost.</div>
         <button className="primary-button full-width" disabled={busy}>{busy ? 'Encrypting archive…' : 'Create encrypted backup'}</button>
       </form>

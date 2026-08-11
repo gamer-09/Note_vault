@@ -51,7 +51,7 @@ An unlocked vault can create a portable backup from the **Backup** button. Filen
 
 The archive passphrase protects the file and becomes the restored vault's passphrase. Restore is available in the concealed private-workspace Settings on any compatible browser. Unknown format, KDF, or cipher versions are rejected rather than guessed.
 
-Version 1.2.1 normalizes native select controls across Windows and other platforms so folder and sorting fields retain the same single-border layout. Version 1.2.2 removes the forced desktop minimum height and adds a bottom safe zone so rail controls remain visible above taskbars on short or scaled displays.
+Version 1.2.1 normalizes native select controls across Windows and other platforms so folder and sorting fields retain the same single-border layout. Version 1.2.2 removes the forced desktop minimum height and adds a bottom safe zone so rail controls remain visible above taskbars on short or scaled displays. Version 1.2.3 adds independent show/hide controls to every passphrase and confirmation field without persisting the revealed value.
 
 ## Run locally
 
@@ -82,7 +82,7 @@ No paid hosting service or application backend is required.
 ## Set up the concealed private workspace
 
 1. Open **Settings**.
-2. At the bottom, click the ordinary **Quiet Notes · Version 1.2.2** row five times.
+2. At the bottom, click the ordinary **Quiet Notes · Version 1.2.3** row five times.
 3. Set and confirm a passphrase of at least eight characters.
 4. Close Settings.
 5. Create a completely blank new note.
