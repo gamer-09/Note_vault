@@ -1,6 +1,6 @@
 # Quiet Notes
 
-**[Open the live demo →](https://gamer-09.github.io/Note_vault/)**
+**[Open Quiet Notes →](https://gamer-09.github.io/Note_vault/)**
 
 ![Quiet Notes notebook interface](docs/quiet-notes-preview.png)
 
@@ -75,9 +75,9 @@ npm test
 
 ## Deployment
 
-The public demo is deployed at [gamer-09.github.io/Note_vault](https://gamer-09.github.io/Note_vault/) using the free GitHub Pages service. Every push to `main` runs the full test suite, builds Vite with the `/Note_vault/` base path, and deploys the resulting `dist` artifact through `.github/workflows/deploy-pages.yml`.
+The production application is deployed at [gamer-09.github.io/Note_vault](https://gamer-09.github.io/Note_vault/) using GitHub Pages. Every push to `main` runs the full test suite, builds Vite with the `/Note_vault/` base path, and deploys the resulting `dist` artifact through `.github/workflows/deploy-pages.yml`.
 
-No paid hosting service or application backend is required.
+This is the working production application. Notes and encrypted private-workspace data created there are stored in that browser profile. No paid hosting service or application backend is required.
 
 ## Set up the concealed private workspace
 
