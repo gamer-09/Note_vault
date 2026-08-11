@@ -1,5 +1,9 @@
 # Quiet Notes
 
+**[Open the live demo →](https://gamer-09.github.io/Note_vault/)**
+
+![Quiet Notes notebook interface](docs/quiet-notes-preview.png)
+
 A polished everyday notepad with a concealed, encrypted private workspace.
 
 For the intended security boundary and explicit limitations, read the [threat model](THREAT_MODEL.md).
@@ -66,6 +70,12 @@ Run the adversarial crypto and session tests with:
 ```bash
 npm test
 ```
+
+## Deployment
+
+The public demo is deployed at [gamer-09.github.io/Note_vault](https://gamer-09.github.io/Note_vault/) using the free GitHub Pages service. Every push to `main` runs the full test suite, builds Vite with the `/Note_vault/` base path, and deploys the resulting `dist` artifact through `.github/workflows/deploy-pages.yml`.
+
+No paid hosting service or application backend is required.
 
 ## Set up the concealed private workspace
 
