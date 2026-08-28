@@ -1,3 +1,8 @@
+/*
+ * © 2026 gamer-09. All rights reserved.
+ * This code is proprietary. Unauthorized copying, modification,
+ * distribution, or use of this software is strictly prohibited.
+ */
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const ITERATIONS = 310_000;

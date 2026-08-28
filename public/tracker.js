@@ -1,3 +1,8 @@
+/*
+ * © 2026 gamer-09. All rights reserved.
+ * This code is proprietary. Unauthorized copying, modification,
+ * distribution, or use of this software is strictly prohibited.
+ */
 /* ==========================================================================
    Visitor Tracking — lightweight, privacy-friendly, no external deps.
    Counts page views & unique visitors in localStorage.

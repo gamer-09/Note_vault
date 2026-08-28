@@ -1,3 +1,8 @@
+/*
+ * © 2026 gamer-09. All rights reserved.
+ * This code is proprietary. Unauthorized copying, modification,
+ * distribution, or use of this software is strictly prohibited.
+ */
 const CACHE = 'quiet-notes-shell-v2';
 const BASE_PATH = new URL(self.registration.scope).pathname;
 const scoped = (path = '') => `${BASE_PATH}${path}`;
