@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — ptr_29 Chat</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: #2563eb; }
+    .badge { display: inline-block; background: rgba(37,99,235,0.15); border: 1px solid rgba(37,99,235,0.3); padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.7rem; color: #2563eb; font-weight: 600; margin-bottom: 1.5rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 1.5rem; text-align: center; }
+    .card .val { font-size: 2.5rem; font-weight: 700; font-family: monospace; }
+    .card .lbl { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-top: 0.4rem; }
+    .card.blue .val { color: #2563eb; }
+    .card.green .val { color: #16a34a; }
+    table { width: 100%; border-collapse: collapse; background: #111827; border: 1px solid #1f2937; border-radius: 12px; overflow: hidden; margin-bottom: 2rem; }
+    th, td { padding: 0.7rem 1rem; text-align: left; font-size: 0.85rem; border-bottom: 1px solid #1f2937; }
+    th { background: #0b1220; color: #9ca3af; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; }
+    .btns { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .btn { padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #1f2937; background: #111827; color: #9ca3af; font-size: 0.82rem; cursor: pointer; }
+    .btn:hover { border-color: #2563eb; color: #2563eb; }
+    .btn-danger { color: #dc2626; border-color: rgba(220,38,38,0.3); }
+    .btn-danger:hover { background: rgba(220,38,38,0.1); }
+    .empty { color: #7a8594; padding: 2rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>📊 Admin Dashboard</h1>
+  <span class="badge">🔒 SECRET — ptr_29 Chat</span>
+
+  <div class="cards">
+    <div class="card blue"><div class="val" id="views">0</div><div class="lbl">Total Views</div></div>
+    <div class="card green"><div class="val" id="visitors">0</div><div class="lbl">Unique Visitors</div></div>
+  </div>
+
+  <h2 style="font-size:1rem;margin-bottom:1rem">ℹ️ Info</h2>
+  <table>
+    <tr><td>First visit</td><td id="first">—</td></tr>
+    <tr><td>Last visit</td><td id="last">—</td></tr>
+    <tr><td>Data storage</td><td>Browser localStorage</td></tr>
+  </table>
+
+  <div class="btns">
+    <button class="btn" onclick="exp()">📥 Export</button>
+    <button class="btn btn-danger" onclick="rst()">🗑️ Reset</button>
+  </div>
+
+  <script>
+    var s;
+    try { s = JSON.parse(localStorage.getItem('site_stats')); } catch(e) { s = null; }
+    if (!s) { document.body.innerHTML = '<div class="empty"><h2>No data yet</h2><p>Visit the site to start collecting stats.</p></div>'; }
+    else {
+      document.getElementById('views').textContent = s.views || 0;
+      document.getElementById('visitors').textContent = (s.visitors || []).length;
+      document.getElementById('first').textContent = s.first ? new Date(s.first).toLocaleString() : '—';
+      document.getElementById('last').textContent = s.last ? new Date(s.last).toLocaleString() : '—';
+    }
+    function exp() {
+      var b = new Blob([JSON.stringify(s, null, 2)], {type:'application/json'});
+      var a = document.createElement('a'); a.href = URL.createObjectURL(b);
+      a.download = 'chat-site-stats-' + new Date().toISOString().slice(0,10) + '.json'; a.click();
+    }
+    function rst() {
+      if (confirm('Delete ALL tracking data? This cannot be undone.')) { localStorage.removeItem('site_stats'); location.reload(); }
+    }
+  </script>
+</body>
+</html>
