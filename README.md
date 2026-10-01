@@ -126,4 +126,6 @@ public/sw.js      Offline app-shell cache
 
 ## License
 
-See [LICENSE](LICENSE).
+Proprietary — all rights reserved. See [LICENSE](LICENSE).
+
+The source code in this repository is **not** open source: you may not copy, modify, or redistribute it. Third-party dependencies remain under their own licenses.

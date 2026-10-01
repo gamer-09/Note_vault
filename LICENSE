@@ -1,21 +1,49 @@
-MIT License
+Proprietary — All Rights Reserved
 
-Copyright (c) 2026 gamer-09
+Copyright (c) 2026 gamer-09. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This source code, documentation, assets, and associated files (the "Work")
+are the proprietary work of the copyright holder and are NOT open source.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+PERMITTED USE
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+You may view this repository and the deployed website for personal,
+non-commercial, informational purposes only.
+
+YOU MAY NOT:
+
+  1. Copy, reproduce, clone for redistribution, mirror, or re-host the
+     Work or any substantial portion of it;
+  2. Modify, adapt, translate, or create derivative works based on the
+     Work;
+  3. Distribute, publish, sublicense, sell, rent, lease, or otherwise
+     transfer the Work or any copy of it, in source or compiled form;
+  4. Use the Work, or any substantial portion of it, to train machine
+     learning models or to build a competing or substantially similar
+     product or service;
+  5. Remove, obscure, or alter any copyright, trademark, or other
+     proprietary notices contained in the Work.
+
+No license is granted by making this repository publicly viewable.
+Viewing a public repository does not constitute consent, and no rights
+are granted except as expressly stated above.
+
+THIRD-PARTY COMPONENTS
+
+Third-party libraries and dependencies remain under their own respective
+open-source licenses. Nothing in this license restricts those components;
+it applies only to the original Work in this repository.
+
+NO WARRANTY
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS IN THE WORK.
+
+LICENSING INQUIRIES
+
+Any other use requires prior written permission from the copyright
+holder. Contact: https://github.com/gamer-09
