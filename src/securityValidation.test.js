@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_PRIVATE_ITEM_BYTES,
+  PRIVATE_UPLOAD_ACCEPT,
   getSafePreviewKind,
   safeDownloadName,
   validateUploadFile,
@@ -20,16 +21,32 @@ const validMetadata = {
 
 describe('local input validation and safe previews', () => {
   it('accepts empty files, normalizes questionable MIME types, and enforces the per-item size limit', () => {
-    expect(validateUploadFile({ name: 'empty.bin', type: '', size: 0 })).toEqual({
-      name: 'empty.bin',
-      type: 'application/octet-stream',
+    expect(validateUploadFile({ name: 'empty.txt', type: '', size: 0 })).toEqual({
+      name: 'empty.txt',
+      type: 'text/plain',
       size: 0,
     });
     expect(validateUploadFile({ name: 'photo.png', type: 'IMAGE/PNG', size: 8 }).type).toBe('image/png');
-    expect(() => validateUploadFile({ name: 'too-large.bin', type: '', size: MAX_PRIVATE_ITEM_BYTES + 1 }))
+    expect(() => validateUploadFile({ name: 'too-large.txt', type: '', size: MAX_PRIVATE_ITEM_BYTES + 1 }))
       .toThrow('Each file must be 25 MB or smaller.');
     expect(() => validateUploadFile({ name: '\u0000\u0001', type: '', size: 0 }))
       .toThrow('The selected file needs a usable name.');
+  });
+
+  it('allowlists needed documents/images and rejects scripts, executables, archives, and mismatched MIME types', () => {
+    expect(PRIVATE_UPLOAD_ACCEPT.split(',')).toContain('.pdf');
+    expect(PRIVATE_UPLOAD_ACCEPT.split(',')).toContain('.docx');
+    expect(PRIVATE_UPLOAD_ACCEPT.split(',')).not.toContain('.exe');
+    expect(PRIVATE_UPLOAD_ACCEPT.split(',')).not.toContain('.zip');
+
+    expect(validateUploadFile({ name: 'letter.docx', type: 'application/octet-stream', size: 12 }).type)
+      .toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    for (const name of ['payload.exe', 'archive.zip', 'active.svg', 'page.html', 'unknown.bin']) {
+      expect(() => validateUploadFile({ name, type: 'application/octet-stream', size: 12 }))
+        .toThrow('Unsupported file type.');
+    }
+    expect(() => validateUploadFile({ name: 'fake.pdf', type: 'application/x-msdownload', size: 12 }))
+      .toThrow('The file extension and MIME type do not match.');
   });
 
   it('only accepts well-formed private metadata whose declared size matches content', () => {
