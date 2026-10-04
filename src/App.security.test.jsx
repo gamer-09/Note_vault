@@ -6,9 +6,17 @@ import { clearVaultRecords, deleteMeta, getAllNotes, getAllVaultRecords, getMeta
 
 const PASSPHRASE = 'quiet notes integration passphrase';
 
+let originalViewTransitionDescriptor;
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  if (originalViewTransitionDescriptor) {
+    Object.defineProperty(document, 'startViewTransition', originalViewTransitionDescriptor);
+  } else {
+    delete document.startViewTransition;
+  }
+  originalViewTransitionDescriptor = undefined;
 });
 
 beforeEach(async () => {
@@ -35,6 +43,17 @@ async function createPrivateSpace() {
 describe('Quiet Notes security and hidden-workspace regression checks', () => {
   it('keeps the hidden passphrase trigger working, does not save a failed trigger, and stores private content only as ciphertext', async () => {
     const consoleError = vi.spyOn(console, 'error');
+    const viewTransitions = [];
+    originalViewTransitionDescriptor = Object.getOwnPropertyDescriptor(document, 'startViewTransition');
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: (update) => {
+        update();
+        const transition = { finished: Promise.resolve() };
+        viewTransitions.push(transition);
+        return transition;
+      },
+    });
     window.localStorage.setItem('quiet-notes-theme', 'javascript:invalid');
     window.localStorage.setItem('quiet-notes-sort', '<script>invalid</script>');
 
@@ -108,6 +127,7 @@ describe('Quiet Notes security and hidden-workspace regression checks', () => {
     expect(await screen.findByText('private-evidence.txt')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Lock & close' }));
     await screen.findByRole('heading', { name: 'All notes' });
+    expect(viewTransitions).toHaveLength(4);
   });
 
   it('imports and renders HTML-looking note text as text, never as active markup', async () => {

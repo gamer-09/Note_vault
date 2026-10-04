@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   Archive,
   ArrowLeft,
@@ -329,7 +330,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.2.5</span>
+            <span>Version 1.2.6</span>
           </button>
         </div>
       </section>
@@ -790,7 +791,41 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [vaultConfigured, setVaultConfigured] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState(null);
-  const [view, setView] = useState('notes');
+  const [view, setViewState] = useState('notes');
+  const setView = useCallback((nextView) => {
+    if (nextView === view) return;
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (typeof document.startViewTransition !== 'function' || prefersReducedMotion) {
+      setViewState(nextView);
+      return;
+    }
+
+    const root = document.documentElement;
+    const lockingVault = view === 'vault' && nextView === 'notes';
+    const openingVault = view === 'notes' && nextView === 'vault';
+    root.classList.add('view-transition-active');
+    if (lockingVault) root.classList.add('vault-locking');
+    if (openingVault) root.classList.add('vault-opening');
+
+    let committed = false;
+    let fallbackTimer;
+    const cleanupTransitionClasses = () => {
+      root.classList.remove('view-transition-active', 'vault-locking', 'vault-opening');
+      window.clearTimeout(fallbackTimer);
+    };
+
+    try {
+      const transition = document.startViewTransition(() => {
+        flushSync(() => setViewState(nextView));
+        committed = true;
+      });
+      transition.finished.then(cleanupTransitionClasses, cleanupTransitionClasses);
+      fallbackTimer = window.setTimeout(cleanupTransitionClasses, 1_000);
+    } catch {
+      cleanupTransitionClasses();
+      if (!committed) setViewState(nextView);
+    }
+  }, [view]);
   const [saveState, setSaveState] = useState('Saved');
   const [toast, setToast] = useState(null);
   const [mobilePane, setMobilePane] = useState('list');
@@ -903,7 +938,7 @@ export default function App() {
     }, currentNote.body.endsWith('\n') ? 40 : 650);
 
     return () => window.clearTimeout(timer);
-  }, [currentNote?.body, currentNote?.title, currentNote?.triggerEligible, currentNote?.id, vaultConfigured]);
+  }, [currentNote?.body, currentNote?.title, currentNote?.triggerEligible, currentNote?.id, vaultConfigured, setView]);
 
   const createNote = async () => {
     const note = makeNote(folderFilter === 'all' ? '' : folderFilter);
