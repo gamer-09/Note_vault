@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { MAX_PASSPHRASE_LENGTH } from './securityValidation';
 
 export default function PasswordField({ label, value, onChange, placeholder, autoComplete = 'new-password', autoFocus = false }) {
   const [revealed, setRevealed] = useState(false);
@@ -19,6 +20,7 @@ export default function PasswordField({ label, value, onChange, placeholder, aut
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
+          maxLength={MAX_PASSPHRASE_LENGTH}
         />
         <button
           type="button"

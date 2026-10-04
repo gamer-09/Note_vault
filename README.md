@@ -6,7 +6,7 @@
 
 A polished everyday notepad with a concealed, encrypted private workspace.
 
-For the intended security boundary and explicit limitations, read the [threat model](THREAT_MODEL.md).
+For the intended security boundary and explicit limitations, read the [threat model](THREAT_MODEL.md) and [19-point security review](SECURITY_REVIEW.md).
 
 ## What it does
 
@@ -51,12 +51,12 @@ An unlocked vault can create a portable backup from the **Backup** button. Filen
 
 The archive passphrase protects the file and becomes the restored vault's passphrase. Restore is available in the concealed private-workspace Settings on any compatible browser. Unknown format, KDF, or cipher versions are rejected rather than guessed.
 
-Version 1.2.1 normalizes native select controls across Windows and other platforms so folder and sorting fields retain the same single-border layout. Version 1.2.2 removes the forced desktop minimum height and adds a bottom safe zone so rail controls remain visible above taskbars on short or scaled displays. Version 1.2.3 adds independent show/hide controls to every passphrase and confirmation field without persisting the revealed value.
+Version 1.2.1 normalizes native select controls across Windows and other platforms so folder and sorting fields retain the same single-border layout. Version 1.2.2 removes the forced desktop minimum height and adds a bottom safe zone so rail controls remain visible above taskbars on short or scaled displays. Version 1.2.3 adds independent show/hide controls to every passphrase and confirmation field without persisting the revealed value. Version 1.2.4 hardens local imports and previews, adds a production Content Security Policy, pins and audits dependencies, and adds integration checks for the concealed workspace.
 
 ## Run locally
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -64,10 +64,11 @@ Open the local URL printed by Vite. For a production build:
 
 ```bash
 npm run build
+npm run check:production-security
 npm run preview
 ```
 
-Run the adversarial crypto and session tests with:
+Run the crypto, archive, import-validation, legacy-tracker cleanup, hidden-trigger, XSS-rendering, password-field, and auto-lock regression tests with:
 
 ```bash
 npm test
@@ -75,15 +76,15 @@ npm test
 
 ## Deployment
 
-The production application is deployed at [gamer-09.github.io/Note_vault](https://gamer-09.github.io/Note_vault/) using GitHub Pages. Every push to `main` runs the full test suite, builds Vite with the `/Note_vault/` base path, and deploys the resulting `dist` artifact through `.github/workflows/deploy-pages.yml`.
+The production application is deployed at [gamer-09.github.io/Note_vault](https://gamer-09.github.io/Note_vault/) using GitHub Pages. Every push to `main` runs `npm audit`, the regression suite, a Vite build with the `/Note_vault/` base path, and a production-CSP check before deploying the `dist` artifact through `.github/workflows/deploy-pages.yml`.
 
 This is the working production application. Notes and encrypted private-workspace data created there are stored in that browser profile. No paid hosting service or application backend is required.
 
 ## Set up the concealed private workspace
 
 1. Open **Settings**.
-2. At the bottom, click the ordinary **Quiet Notes · Version 1.2.3** row five times.
-3. Set and confirm a passphrase of at least eight characters.
+2. At the bottom, click the ordinary **Quiet Notes · Version 1.2.4** row five times.
+3. Set and confirm a passphrase of 8–1,024 characters.
 4. Close Settings.
 5. Create a completely blank new note.
 6. In the body, type exactly:
@@ -99,7 +100,7 @@ The trigger only works on a fresh note with a blank title. Trigger-like text is 
 
 ## Storage and security model
 
-Private items are encrypted **before** being stored in IndexedDB. Their names, MIME types, and contents are not readable in browser storage without the passphrase. There is no backend, account, analytics service, or cloud sync in this project.
+Private items are encrypted **before** being stored in IndexedDB. Their names, MIME types, and contents are not readable in browser storage without the passphrase. There is no backend, account, analytics service, or cloud sync in this project. Startup also removes four named local/session-storage keys left by a retired tracker; no tracker is loaded.
 
 ### Important, honest limitation
 
@@ -109,19 +110,21 @@ No application can store a file on a PC while also storing no bytes anywhere on 
 - Losing the passphrase permanently loses access; there is no recovery key.
 - A compromised browser, malicious extension, keylogger, or malware running while the vault is unlocked can defeat client-side protection.
 - Ordinary notes are local but **not encrypted**. Only items placed inside the private workspace are encrypted.
-- The current per-file limit is 25 MB to avoid excessive browser-memory use.
+- Each private item is limited to 25 MB; portable backups are limited to 100 MB. Normal-note JSON imports are also capped at 100 MB. These limits help avoid excessive browser-memory use.
 
 For stronger OS-level protection, combine this app with full-disk encryption (BitLocker, FileVault, or LUKS) and a trusted browser profile.
 
 ## Project structure
 
 ```text
-src/App.jsx       Main notes UI, hidden setup flow, and private workspace
-src/crypto.js        PBKDF2 and AES-GCM helpers
-src/vaultArchive.js  Portable encrypted archive format
-src/db.js            IndexedDB persistence
-src/styles.css       Responsive desktop/mobile styling
-public/sw.js      Offline app-shell cache
+src/App.jsx                  Main notes UI, hidden setup flow, and private workspace
+src/crypto.js                PBKDF2 and AES-GCM helpers
+src/vaultArchive.js          Portable encrypted archive format
+src/securityValidation.js    Local input and safe-preview checks
+src/legacyTrackingCleanup.js Purges leftover keys from the retired tracker
+src/db.js                    IndexedDB persistence
+src/styles.css               Responsive desktop/mobile styling
+public/sw.js                 Offline app-shell cache
 ```
 
 ## License

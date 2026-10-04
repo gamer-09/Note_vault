@@ -3,7 +3,7 @@
  * This code is proprietary. Unauthorized copying, modification,
  * distribution, or use of this software is strictly prohibited.
  */
-const CACHE = 'quiet-notes-shell-v2';
+const CACHE = 'quiet-notes-shell-v3';
 const BASE_PATH = new URL(self.registration.scope).pathname;
 const scoped = (path = '') => `${BASE_PATH}${path}`;
 const SHELL = [BASE_PATH, scoped('index.html'), scoped('icon.svg'), scoped('manifest.webmanifest')];

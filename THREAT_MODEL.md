@@ -6,6 +6,8 @@ Quiet Notes is an ordinary local notepad with a concealed private workspace. The
 
 This document describes the intended security boundary. It is not a claim that the application can make data physically invisible, resist a compromised operating system, or provide forensic deniability.
 
+Quiet Notes is a static GitHub Pages application with no account service, application API, remote database, analytics, email, payment, or user-file hosting. Ordinary notes are local and unencrypted; only the concealed private workspace is encrypted. Production builds add a restrictive Content Security Policy as an HTML meta policy. GitHub Pages does not let this project configure all HTTP response headers, so the meta policy is not a substitute for server-controlled headers such as `frame-ancestors`.
+
 ## Assets being protected
 
 Inside the private workspace:
@@ -37,11 +39,11 @@ This does **not** protect against someone viewing or photographing the screen wh
 
 ### Modification of encrypted records or archives
 
-AES-GCM authentication causes modified ciphertext to fail decryption rather than produce unauthenticated garbage. Portable archives also fail closed when their ciphertext is changed or the passphrase is wrong.
+AES-GCM authentication causes modified ciphertext to fail decryption rather than produce unauthenticated garbage. Portable archives also fail closed when their ciphertext is changed or the passphrase is wrong. Imported archive metadata is schema-validated before it reaches the UI. Note text is rendered as text; unsupported or MIME/signature-mismatched files are downloaded instead of embedded as active content. Production builds restrict scripts, styles, and network connections with a Content Security Policy.
 
 ### Loss or copying of a portable archive
 
-A copied `.qnvault` file does not expose its filenames, folders, metadata, or contents without its archive passphrase. The format version, KDF parameters, salt, IV, and ciphertext length remain visible.
+A copied `.qnvault` file does not expose its filenames, folders, metadata, or contents without its archive passphrase. The format version, KDF parameters, salt, IV, and ciphertext length remain visible. Current safety limits are 25 MB per private item and 100 MB per portable archive; these limits are to bound browser memory use, not to promise unlimited storage.
 
 ## What it explicitly does not protect against
 

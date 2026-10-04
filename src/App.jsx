@@ -66,9 +66,19 @@ import {
 import { useVaultAutoLock } from './useVaultAutoLock';
 import { createPortableVaultArchive, importPortableVaultArchive } from './vaultArchive';
 import PasswordField from './PasswordField';
+import {
+  MAX_IMPORTED_NOTES,
+  MAX_NOTE_BACKUP_BYTES,
+  MAX_PASSPHRASE_LENGTH,
+  MAX_PORTABLE_ARCHIVE_BYTES,
+  MAX_PRIVATE_ITEM_BYTES,
+  getSafePreviewKind,
+  safeDownloadName,
+  validateUploadFile,
+  validateVaultMetadata,
+} from './securityValidation';
 
 const TRIGGER_PREFIX = 'Password = ';
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 function triggerLine(body = '') {
   return body.endsWith('\n') ? body.slice(0, -1) : body;
@@ -132,9 +142,26 @@ function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = name;
+  anchor.download = safeDownloadName(name);
   anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+function readPreference(key, allowedValues, fallback) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return allowedValues.includes(value) ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writePreference(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Display preferences are optional; blocked storage must not stop note-taking.
+  }
 }
 
 function Toast({ toast }) {
@@ -193,8 +220,14 @@ function SettingsModal({
   if (!open) return null;
 
   const exportNotes = () => {
+    if (notes.length > MAX_IMPORTED_NOTES || folders.length > MAX_IMPORTED_NOTES) {
+      return notify('Note backups support up to 10,000 notes and folders', 'error');
+    }
     const cleanNotes = notes.map(({ triggerEligible, ...note }) => note);
     const payload = JSON.stringify({ app: 'Quiet Notes', version: 2, exportedAt: new Date().toISOString(), folders, notes: cleanNotes }, null, 2);
+    if (new TextEncoder().encode(payload).byteLength > MAX_NOTE_BACKUP_BYTES) {
+      return notify('Note backups must be 100 MB or smaller', 'error');
+    }
     downloadBlob(new Blob([payload], { type: 'application/json' }), `quiet-notes-${new Date().toISOString().slice(0, 10)}.json`);
     notify('Notes exported');
   };
@@ -202,6 +235,7 @@ function SettingsModal({
   const setupVault = async (event) => {
     event.preventDefault();
     if (passphrase.length < 8) return notify('Use at least 8 characters', 'error');
+    if (passphrase.length > MAX_PASSPHRASE_LENGTH) return notify('Passphrase must be 1,024 characters or fewer', 'error');
     if (passphrase.trim() !== passphrase) return notify('Passphrase cannot start or end with a space', 'error');
     if (passphrase !== confirmPassphrase) return notify('Passphrases do not match', 'error');
 
@@ -214,7 +248,6 @@ function SettingsModal({
       setConfirmPassphrase('');
       notify('Private space is ready');
     } catch (error) {
-      console.error(error);
       notify('Could not create private space', 'error');
     } finally {
       setSaving(false);
@@ -295,7 +328,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.2.3</span>
+            <span>Version 1.2.4</span>
           </button>
         </div>
       </section>
@@ -359,7 +392,7 @@ function PreviewDialog({ preview, onClose }) {
         <div className="preview-content">
           {preview.kind === 'text' && <pre>{preview.text}</pre>}
           {preview.kind === 'image' && <img src={preview.url} alt={preview.name} />}
-          {preview.kind === 'pdf' && <iframe src={preview.url} title={preview.name} />}
+          {preview.kind === 'pdf' && <iframe src={preview.url} title={preview.name} referrerPolicy="no-referrer" />}
         </div>
       </section>
     </div>
@@ -414,7 +447,7 @@ function BackupDialog({ open, onClose, onExport, busy }) {
           <div><span className="eyebrow">Portable archive</span><h2>Back up private space</h2></div>
           <button type="button" className="icon-button" onClick={onClose}><X size={20} /></button>
         </header>
-        <p className="settings-copy">The complete workspace will become one authenticated ciphertext. This archive passphrase will also unlock the restored vault on another device.</p>
+        <p className="settings-copy">The complete workspace will become one authenticated ciphertext. Portable backups are limited to 100 MB, with each private item limited to 25 MB. This archive passphrase will also unlock the restored vault on another device.</p>
         <PasswordField label="Archive passphrase" value={passphrase} onChange={setPassphrase} placeholder="At least 8 characters" autoFocus />
         <PasswordField label="Confirm archive passphrase" value={confirmation} onChange={setConfirmation} placeholder="Type it again" />
         <div className="security-note"><DatabaseBackup size={14} /> Keep both the archive and its passphrase. There is no recovery if either is lost.</div>
@@ -445,7 +478,9 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
       const records = await getAllVaultRecords();
       const decrypted = await Promise.all(records.map(async (record) => {
         try {
-          return await decryptVaultMetadata(encryptionKey, record);
+          const metadata = validateVaultMetadata(await decryptVaultMetadata(encryptionKey, record));
+          if (record.id !== metadata.id || record.addedAt !== metadata.addedAt) return null;
+          return metadata;
         } catch {
           return null;
         }
@@ -475,29 +510,35 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
     if (!files.length) return;
-    if (files.some((file) => file.size > MAX_FILE_SIZE)) return notify('Each file must be 25 MB or smaller', 'error');
+    let validatedFiles;
+    try {
+      validatedFiles = files.map((file) => validateUploadFile(file));
+    } catch (error) {
+      return notify(error.message || 'Choose a valid file', 'error');
+    }
 
     setBusy(true);
     try {
-      for (const file of files) {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        const fileInfo = validatedFiles[index];
         const now = Date.now();
-        const metadata = {
+        const metadata = validateVaultMetadata({
           id: crypto.randomUUID(),
-          name: file.name,
-          type: file.type || 'application/octet-stream',
+          name: fileInfo.name,
+          type: fileInfo.type,
           kind: 'file',
-          folder: destinationFolder.trim(),
-          size: file.size,
+          folder: destinationFolder.trim().slice(0, 60),
+          size: fileInfo.size,
           addedAt: now,
           updatedAt: now,
-        };
+        }, { contentSize: fileInfo.size });
         const record = await encryptVaultRecord(encryptionKey, metadata, await file.arrayBuffer());
         await putVaultRecord(record);
       }
       await loadItems();
       notify(`${files.length} encrypted item${files.length === 1 ? '' : 's'} added`);
     } catch (error) {
-      console.error(error);
       notify('Could not encrypt that file', 'error');
     } finally {
       setBusy(false);
@@ -505,27 +546,28 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
   };
 
   const savePrivateNote = async (name, text, folder) => {
-    if (!name.trim()) return;
+    if (typeof name !== 'string' || !name.trim()) return;
+    if (typeof text !== 'string' || typeof folder !== 'string') return notify('Private note input is invalid', 'error');
+    const content = textToBytes(text);
+    if (content.byteLength > MAX_PRIVATE_ITEM_BYTES) return notify('Private notes must be 25 MB or smaller', 'error');
     setBusy(true);
     try {
       const now = Date.now();
-      const content = textToBytes(text);
-      const metadata = {
+      const metadata = validateVaultMetadata({
         id: crypto.randomUUID(),
-        name: name.trim(),
+        name: name.trim().slice(0, 120),
         type: 'text/plain',
         kind: 'note',
-        folder: folder.trim(),
+        folder: folder.trim().slice(0, 60),
         size: content.byteLength,
         addedAt: now,
         updatedAt: now,
-      };
+      }, { contentSize: content.byteLength });
       await putVaultRecord(await encryptVaultRecord(encryptionKey, metadata, content));
       setNoteDialog(false);
       await loadItems();
       notify('Private note encrypted');
     } catch (error) {
-      console.error(error);
       notify('Could not save private note', 'error');
     } finally {
       setBusy(false);
@@ -534,8 +576,12 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
 
   const decryptItem = async (item) => {
     const record = await getVaultRecord(item.id);
-    if (!record) throw new Error('Encrypted item was not found.');
-    return decryptVaultContent(encryptionKey, record);
+    if (!record || record.id !== item.id) throw new Error('Encrypted item was not found.');
+    const metadata = validateVaultMetadata(await decryptVaultMetadata(encryptionKey, record));
+    if (metadata.id !== item.id || record.addedAt !== metadata.addedAt) throw new Error('Encrypted item metadata is inconsistent.');
+    const content = await decryptVaultContent(encryptionKey, record);
+    if (content.byteLength !== metadata.size) throw new Error('Encrypted item size is inconsistent.');
+    return content;
   };
 
   const downloadItem = async (item) => {
@@ -545,7 +591,6 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
       downloadBlob(new Blob([bytes], { type: item.type }), item.name);
       notify('Decrypted download ready');
     } catch (error) {
-      console.error(error);
       notify('Could not decrypt this item', 'error');
     } finally {
       setBusy(false);
@@ -556,17 +601,18 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
     setBusy(true);
     try {
       const bytes = await decryptItem(item);
-      if (item.kind === 'note' || item.type.startsWith('text/')) {
+      const previewKind = getSafePreviewKind(item, bytes);
+      if (previewKind === 'text') {
         setPreview({ kind: 'text', name: item.name, text: bytesToText(bytes) });
-      } else if (item.type.startsWith('image/')) {
+      } else if (previewKind === 'image') {
         setPreview({ kind: 'image', name: item.name, url: URL.createObjectURL(new Blob([bytes], { type: item.type })) });
-      } else if (item.type === 'application/pdf') {
+      } else if (previewKind === 'pdf') {
         setPreview({ kind: 'pdf', name: item.name, url: URL.createObjectURL(new Blob([bytes], { type: item.type })) });
       } else {
-        downloadBlob(new Blob([bytes], { type: item.type }), item.name);
+        downloadBlob(new Blob([bytes], { type: 'application/octet-stream' }), item.name);
+        notify('Downloaded instead of previewing this file');
       }
     } catch (error) {
-      console.error(error);
       notify('Could not decrypt this item', 'error');
     } finally {
       setBusy(false);
@@ -579,12 +625,11 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
     setBusy(true);
     try {
       const content = await decryptItem(item);
-      const metadata = { ...item, folder: folder.trim().slice(0, 60), updatedAt: Date.now() };
+      const metadata = validateVaultMetadata({ ...item, folder: folder.trim().slice(0, 60), updatedAt: Date.now() }, { contentSize: content.byteLength });
       await putVaultRecord(await encryptVaultRecord(encryptionKey, metadata, content));
       setItems((current) => current.map((entry) => entry.id === item.id ? metadata : entry));
       notify(metadata.folder ? `Moved to ${metadata.folder}` : 'Moved to Unfiled');
     } catch (error) {
-      console.error(error);
       notify('Could not move this item', 'error');
     } finally {
       setBusy(false);
@@ -600,6 +645,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
 
   const exportPortableBackup = async (passphrase, confirmation) => {
     if (passphrase.length < 8) return notify('Use at least 8 characters', 'error');
+    if (passphrase.length > MAX_PASSPHRASE_LENGTH) return notify('Passphrase must be 1,024 characters or fewer', 'error');
     if (passphrase.trim() !== passphrase) return notify('Passphrase cannot start or end with a space', 'error');
     if (passphrase !== confirmation) return notify('Passphrases do not match', 'error');
 
@@ -611,8 +657,11 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
       setBackupDialog(false);
       notify(`Portable backup created with ${records.length} item${records.length === 1 ? '' : 's'}`);
     } catch (error) {
-      console.error(error);
-      notify('Could not create the portable backup', 'error');
+      if (error.code === 'ARCHIVE_TOO_LARGE' || error.code === 'ITEM_TOO_LARGE') {
+        notify('Portable backup exceeds the 100 MB archive or 25 MB item limit', 'error');
+      } else {
+        notify('Could not create the portable backup', 'error');
+      }
     } finally {
       setBusy(false);
     }
@@ -620,6 +669,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
 
   const rotatePassphrase = async (passphrase, confirmation) => {
     if (passphrase.length < 8) return notify('Use at least 8 characters', 'error');
+    if (passphrase.length > MAX_PASSPHRASE_LENGTH) return notify('Passphrase must be 1,024 characters or fewer', 'error');
     if (passphrase.trim() !== passphrase) return notify('Passphrase cannot start or end with a space', 'error');
     if (passphrase !== confirmation) return notify('Passphrases do not match', 'error');
 
@@ -633,7 +683,6 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
       setSecurityDialog(false);
       notify('Passphrase changed and items re-encrypted');
     } catch (error) {
-      console.error(error);
       notify('Could not change the passphrase', 'error');
     } finally {
       setBusy(false);
@@ -689,7 +738,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
           </label>
         </div>
 
-        <div className="storage-notice"><HardDrive size={15} /><span><strong>No cloud sync.</strong> Encrypted bytes live in this browser profile and disappear if its site data is cleared.</span></div>
+        <div className="storage-notice"><HardDrive size={15} /><span><strong>No cloud sync.</strong> Encrypted bytes live in this browser profile and disappear if its site data is cleared. Private items are limited to 25 MB each; portable backups are limited to 100 MB.</span></div>
 
         {loading ? (
           <div className="vault-empty"><div className="spinner" /><p>Unlocking your items…</p></div>
@@ -735,8 +784,8 @@ export default function App() {
   const [filter, setFilter] = useState('all');
   const [folders, setFolders] = useState([]);
   const [folderFilter, setFolderFilter] = useState('all');
-  const [sortBy, setSortBy] = useState(() => localStorage.getItem('quiet-notes-sort') || 'updated');
-  const [theme, setTheme] = useState(() => localStorage.getItem('quiet-notes-theme') || 'light');
+  const [sortBy, setSortBy] = useState(() => readPreference('quiet-notes-sort', ['updated', 'created', 'title'], 'updated'));
+  const [theme, setTheme] = useState(() => readPreference('quiet-notes-theme', ['light', 'dark'], 'light'));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [vaultConfigured, setVaultConfigured] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState(null);
@@ -758,11 +807,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('quiet-notes-theme', theme);
+    writePreference('quiet-notes-theme', theme);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('quiet-notes-sort', sortBy);
+    writePreference('quiet-notes-sort', sortBy);
   }, [sortBy]);
 
   useEffect(() => {
@@ -792,7 +841,6 @@ export default function App() {
       setFolders(Array.isArray(savedFolders) ? savedFolders : []);
       setLoaded(true);
     }).catch((error) => {
-      console.error(error);
       notify('Could not open local notes storage', 'error');
       setLoaded(true);
     });
@@ -887,10 +935,12 @@ export default function App() {
   };
 
   const createFolder = async (assignToCurrent = false) => {
-    const name = window.prompt('Name this folder:')?.trim();
+    const enteredName = window.prompt('Name this folder:');
+    if (enteredName === null) return;
+    const name = enteredName.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, 50);
     if (!name) return;
     if (folders.some((folder) => folder.name.toLowerCase() === name.toLowerCase())) return notify('That folder already exists', 'error');
-    const folder = { id: crypto.randomUUID(), name: name.slice(0, 50) };
+    const folder = { id: crypto.randomUUID(), name };
     const updated = [...folders, folder];
     setFolders(updated);
     await setMeta('noteFolders', updated);
@@ -995,12 +1045,26 @@ export default function App() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    if (!Number.isSafeInteger(file.size) || file.size > MAX_NOTE_BACKUP_BYTES) {
+      return notify('Note backups must be 100 MB or smaller', 'error');
+    }
     try {
       const parsed = JSON.parse(await file.text());
-      if (!Array.isArray(parsed.notes)) throw new Error('Invalid backup');
+      if (
+        !parsed
+        || typeof parsed !== 'object'
+        || Array.isArray(parsed)
+        || !Array.isArray(parsed.notes)
+        || parsed.notes.length > MAX_IMPORTED_NOTES
+        || (Array.isArray(parsed.folders) && parsed.folders.length > MAX_IMPORTED_NOTES)
+      ) throw new Error('Invalid backup');
+
       const folderMap = new Map();
       const importedFolders = Array.isArray(parsed.folders) ? parsed.folders.reduce((result, folder) => {
-        const name = String(folder.name || '').trim().slice(0, 50);
+        if (!folder || typeof folder !== 'object' || typeof folder.name !== 'string' || typeof folder.id !== 'string') {
+          throw new Error('Invalid folder');
+        }
+        const name = folder.name.trim().slice(0, 50);
         if (!name) return result;
         const existing = [...folders, ...result].find((entry) => entry.name.toLowerCase() === name.toLowerCase());
         const id = existing?.id || crypto.randomUUID();
@@ -1008,16 +1072,30 @@ export default function App() {
         if (!existing) result.push({ id, name });
         return result;
       }, []) : [];
-      const imported = parsed.notes.map((note) => ({
-        id: crypto.randomUUID(),
-        title: String(note.title || '').slice(0, 300),
-        body: String(note.body || ''),
-        folderId: folderMap.get(note.folderId) || '',
-        createdAt: Number(note.createdAt) || Date.now(),
-        updatedAt: Date.now(),
-        pinned: Boolean(note.pinned),
-        triggerEligible: false,
-      }));
+
+      const imported = parsed.notes.map((note) => {
+        if (
+          !note
+          || typeof note !== 'object'
+          || Array.isArray(note)
+          || (note.title !== undefined && typeof note.title !== 'string')
+          || (note.body !== undefined && typeof note.body !== 'string')
+          || (note.folderId !== undefined && typeof note.folderId !== 'string')
+        ) throw new Error('Invalid note');
+        const title = typeof note.title === 'string' ? note.title.slice(0, 300) : '';
+        const body = typeof note.body === 'string' ? note.body : '';
+        const createdAt = Number(note.createdAt);
+        return {
+          id: crypto.randomUUID(),
+          title,
+          body,
+          folderId: typeof note.folderId === 'string' ? folderMap.get(note.folderId) || '' : '',
+          createdAt: Number.isSafeInteger(createdAt) && Number.isFinite(new Date(createdAt).getTime()) ? createdAt : Date.now(),
+          updatedAt: Date.now(),
+          pinned: note.pinned === true,
+          triggerEligible: false,
+        };
+      });
       const merged = [...imported, ...notes];
       const mergedFolders = [...folders, ...importedFolders];
       await Promise.all([replaceAllNotes(merged), setMeta('noteFolders', mergedFolders)]);
@@ -1034,6 +1112,9 @@ export default function App() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    if (!Number.isSafeInteger(file.size) || file.size > MAX_PORTABLE_ARCHIVE_BYTES) {
+      return notify('Portable backups must be 100 MB or smaller', 'error');
+    }
     try {
       const passphrase = window.prompt('Enter the portable backup passphrase:');
       if (passphrase === null) return;
@@ -1043,9 +1124,9 @@ export default function App() {
       setVaultConfigured(true);
       notify(`Portable backup restored with ${restored.records.length} item${restored.records.length === 1 ? '' : 's'}`);
     } catch (error) {
-      console.error(error);
       if (error.code === 'AUTH_FAILED') notify('Wrong backup passphrase or modified archive', 'error');
       else if (error.code?.startsWith('UNSUPPORTED_')) notify(error.message, 'error');
+      else if (error.code === 'ARCHIVE_TOO_LARGE') notify('Portable backups must be 100 MB or smaller', 'error');
       else notify('That is not a valid Quiet Notes portable backup', 'error');
     }
   };

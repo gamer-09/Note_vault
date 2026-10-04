@@ -18,6 +18,7 @@ describe('PasswordField visibility control', () => {
 
     fireEvent.change(input, { target: { value: 'correct horse battery staple' } });
     expect(input).toHaveAttribute('type', 'password');
+    expect(input).toHaveAttribute('maxLength', '1024');
 
     fireEvent.click(screen.getByRole('button', { name: 'Show passphrase' }));
     expect(input).toHaveAttribute('type', 'text');

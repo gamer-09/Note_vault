@@ -4,6 +4,8 @@ import {
   createVaultConfig,
   decryptVaultContent,
   decryptVaultMetadata,
+  deriveVaultKey,
+  encryptBytes,
   encryptVaultRecord,
   textToBytes,
   unlockVault,
@@ -29,7 +31,7 @@ async function sourceRecords() {
       type: 'text/plain',
       kind: 'note',
       folder: 'Critical secrets',
-      size: 20,
+      size: 21,
       addedAt: 1_725_000_000_000,
       updatedAt: 1_725_000_000_000,
     },
@@ -43,8 +45,18 @@ async function sourceRecords() {
       addedAt: 1_725_000_100_000,
       updatedAt: 1_725_000_100_000,
     },
+    {
+      id: 'empty-file-3',
+      name: 'empty.bin',
+      type: 'application/octet-stream',
+      kind: 'file',
+      folder: '',
+      size: 0,
+      addedAt: 1_725_000_200_000,
+      updatedAt: 1_725_000_200_000,
+    },
   ];
-  const contents = [textToBytes('alpha recovery phrase'), new Uint8Array([0, 1, 2, 253, 254, 255])];
+  const contents = [textToBytes('alpha recovery phrase'), new Uint8Array([0, 1, 2, 253, 254, 255]), new Uint8Array(0)];
   const records = [];
   for (let index = 0; index < metadata.length; index += 1) {
     records.push(await encryptVaultRecord(key, metadata[index], contents[index]));
@@ -59,6 +71,37 @@ function changeOneBase64Byte(value) {
   let changed = '';
   for (const byte of bytes) changed += String.fromCharCode(byte);
   return btoa(changed);
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+async function authenticatedArchiveFor(payload, passphrase) {
+  const salt = crypto.getRandomValues(new Uint8Array(VAULT_ARCHIVE_KDF.saltBytes));
+  const archiveKey = await deriveVaultKey(passphrase, salt);
+  const encrypted = await encryptBytes(archiveKey, textToBytes(JSON.stringify(payload)));
+  return JSON.stringify({
+    header: {
+      format: VAULT_ARCHIVE_MAGIC,
+      version: VAULT_ARCHIVE_VERSION,
+      kdf: {
+        name: VAULT_ARCHIVE_KDF.name,
+        hash: VAULT_ARCHIVE_KDF.hash,
+        iterations: VAULT_ARCHIVE_KDF.iterations,
+        salt: bytesToBase64(salt),
+      },
+      cipher: {
+        name: VAULT_ARCHIVE_CIPHER.name,
+        keyBits: VAULT_ARCHIVE_CIPHER.keyBits,
+        tagBits: VAULT_ARCHIVE_CIPHER.tagBits,
+        iv: bytesToBase64(encrypted.iv),
+      },
+    },
+    ciphertext: bytesToBase64(new Uint8Array(encrypted.cipher)),
+  });
 }
 
 describe('portable encrypted vault archive', () => {
@@ -125,6 +168,31 @@ describe('portable encrypted vault archive', () => {
     tampered.ciphertext = changeOneBase64Byte(tampered.ciphertext);
     await expect(importPortableVaultArchive({ serializedArchive: JSON.stringify(tampered), passphrase: ARCHIVE_PASSPHRASE }))
       .rejects.toMatchObject({ name: 'VaultArchiveError', code: 'AUTH_FAILED' });
+  });
+
+  it('rejects authenticated archives with malformed item metadata before they can break the UI', async () => {
+    const malformedPayload = {
+      schema: 'quiet-notes-workspace',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      items: [{
+        metadata: {
+          id: 'malformed-item',
+          name: { html: '<img src=x onerror=alert(1)>' },
+          type: 'image/svg+xml',
+          kind: 'file',
+          folder: '',
+          size: 0,
+          addedAt: 1_725_000_000_000,
+          updatedAt: 1_725_000_000_000,
+        },
+        content: '',
+      }],
+    };
+    const serialized = await authenticatedArchiveFor(malformedPayload, ARCHIVE_PASSPHRASE);
+
+    await expect(importPortableVaultArchive({ serializedArchive: serialized, passphrase: ARCHIVE_PASSPHRASE }))
+      .rejects.toMatchObject({ name: 'VaultArchiveError', code: 'INVALID_PAYLOAD' });
   });
 
   it('rejects unknown format versions and KDF changes instead of guessing', async () => {
