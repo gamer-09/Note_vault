@@ -18,6 +18,44 @@ const SAFE_RASTER_TYPES = new Set([
   'image/webp',
 ]);
 
+const PRIVATE_UPLOAD_RULES = Object.freeze({
+  '.pdf': ['application/pdf'],
+  '.txt': ['text/plain'],
+  '.md': ['text/markdown', 'text/plain'],
+  '.markdown': ['text/markdown', 'text/plain'],
+  '.csv': ['text/csv', 'application/vnd.ms-excel', 'text/plain'],
+  '.tsv': ['text/tab-separated-values', 'text/plain'],
+  '.json': ['application/json', 'text/plain'],
+  '.rtf': ['application/rtf', 'text/rtf', 'application/x-rtf'],
+  '.doc': ['application/msword', 'application/x-msword', 'application/vnd.ms-word'],
+  '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/x-zip-compressed'],
+  '.odt': ['application/vnd.oasis.opendocument.text', 'application/zip', 'application/x-zip-compressed'],
+  '.xls': ['application/vnd.ms-excel', 'application/msexcel', 'application/x-msexcel'],
+  '.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'application/zip', 'application/x-zip-compressed'],
+  '.ods': ['application/vnd.oasis.opendocument.spreadsheet', 'application/zip', 'application/x-zip-compressed'],
+  '.ppt': ['application/vnd.ms-powerpoint', 'application/mspowerpoint', 'application/x-mspowerpoint'],
+  '.pptx': ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint', 'application/zip', 'application/x-zip-compressed'],
+  '.odp': ['application/vnd.oasis.opendocument.presentation', 'application/zip', 'application/x-zip-compressed'],
+  '.jpg': ['image/jpeg'],
+  '.jpeg': ['image/jpeg'],
+  '.png': ['image/png'],
+  '.gif': ['image/gif'],
+  '.webp': ['image/webp'],
+  '.avif': ['image/avif'],
+  '.bmp': ['image/bmp'],
+  '.tif': ['image/tiff'],
+  '.tiff': ['image/tiff'],
+  '.heic': ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'],
+  '.heif': ['image/heif', 'image/heic', 'image/heif-sequence', 'image/heic-sequence'],
+});
+
+const ZIP_CONTAINER_MIMES = new Set(['application/zip', 'application/x-zip-compressed']);
+const uploadAcceptTypes = new Set([
+  ...Object.keys(PRIVATE_UPLOAD_RULES),
+  ...Object.values(PRIVATE_UPLOAD_RULES).flat().filter((mime) => !ZIP_CONTAINER_MIMES.has(mime)),
+]);
+export const PRIVATE_UPLOAD_ACCEPT = [...uploadAcceptTypes].join(',');
+
 export class ValidationError extends Error {
   constructor(message, code = 'INVALID_INPUT') {
     super(message);
@@ -44,9 +82,24 @@ export function validateUploadFile(file) {
   const name = file.name.normalize('NFC').replace(CONTROL_CHARACTERS_GLOBAL, '').trim().slice(0, 255);
   if (!name) throw new ValidationError('The selected file needs a usable name.');
 
+  const extension = name.match(/\.[^.]+$/)?.[0].toLowerCase();
+  const allowedMimes = PRIVATE_UPLOAD_RULES[extension];
+  if (!allowedMimes) {
+    throw new ValidationError('Unsupported file type. Use PDF, text/CSV/JSON, Office documents, or common images.', 'UNSUPPORTED_FILE_TYPE');
+  }
+
+  const declaredMime = typeof file.type === 'string' ? file.type.trim().toLowerCase() : '';
+  const mimeType = normalizeMimeType(declaredMime);
+  if (declaredMime && mimeType === 'application/octet-stream' && declaredMime !== 'application/octet-stream') {
+    throw new ValidationError('The file has an invalid MIME type.', 'INVALID_FILE_MIME');
+  }
+  if (mimeType !== 'application/octet-stream' && !allowedMimes.includes(mimeType)) {
+    throw new ValidationError('The file extension and MIME type do not match.', 'FILE_TYPE_MISMATCH');
+  }
+
   return {
     name,
-    type: normalizeMimeType(file.type),
+    type: mimeType === 'application/octet-stream' ? allowedMimes[0] : mimeType,
     size: file.size,
   };
 }

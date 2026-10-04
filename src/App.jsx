@@ -71,6 +71,7 @@ import {
   MAX_NOTE_BACKUP_BYTES,
   MAX_PASSPHRASE_LENGTH,
   MAX_PORTABLE_ARCHIVE_BYTES,
+  PRIVATE_UPLOAD_ACCEPT,
   MAX_PRIVATE_ITEM_BYTES,
   getSafePreviewKind,
   safeDownloadName,
@@ -328,7 +329,7 @@ function SettingsModal({
 
           <button className="version-row" onClick={() => setVersionTaps((value) => Math.min(5, value + 1))} aria-label="Application version">
             <span><Sparkles size={15} /> Quiet Notes</span>
-            <span>Version 1.2.4</span>
+            <span>Version 1.2.5</span>
           </button>
         </div>
       </section>
@@ -722,7 +723,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
           <div className="vault-actions">
             <button className="secondary-button" onClick={() => setNoteDialog(true)}><FileText size={16} /> Private note</button>
             <button className="primary-button" onClick={() => fileRef.current?.click()} disabled={busy}><Upload size={16} /> {busy ? 'Working…' : 'Add files'}</button>
-            <input ref={fileRef} hidden type="file" multiple onChange={saveFiles} />
+            <input ref={fileRef} hidden type="file" multiple accept={PRIVATE_UPLOAD_ACCEPT} onChange={saveFiles} />
           </div>
         </div>
 
@@ -738,7 +739,7 @@ function Vault({ encryptionKey, onEncryptionKeyChange, onLock, notify }) {
           </label>
         </div>
 
-        <div className="storage-notice"><HardDrive size={15} /><span><strong>No cloud sync.</strong> Encrypted bytes live in this browser profile and disappear if its site data is cleared. Private items are limited to 25 MB each; portable backups are limited to 100 MB.</span></div>
+        <div className="storage-notice"><HardDrive size={15} /><span><strong>No cloud sync.</strong> Encrypted bytes live in this browser profile and disappear if its site data is cleared. New uploads are limited to 25 MB each and allow PDF, Office/OpenDocument, text/CSV/JSON, and common images; scripts, executables, SVG, archives, and unknown types are blocked. Portable backups are limited to 100 MB.</span></div>
 
         {loading ? (
           <div className="vault-empty"><div className="spinner" /><p>Unlocking your items…</p></div>
