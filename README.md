@@ -51,7 +51,7 @@ An unlocked vault can create a portable backup from the **Backup** button. Filen
 
 The archive passphrase protects the file and becomes the restored vault's passphrase. Restore is available in the concealed private-workspace Settings on any compatible browser. Unknown format, KDF, or cipher versions are rejected rather than guessed.
 
-Version 1.2.1 normalizes native select controls across Windows and other platforms so folder and sorting fields retain the same single-border layout. Version 1.2.2 removes the forced desktop minimum height and adds a bottom safe zone so rail controls remain visible above taskbars on short or scaled displays. Version 1.2.3 adds independent show/hide controls to every passphrase and confirmation field without persisting the revealed value. Version 1.2.4 hardens local imports and previews, adds a production Content Security Policy, pins and audits dependencies, and adds integration checks for the concealed workspace.
+Version 1.2.1 normalizes native select controls across Windows and other platforms so folder and sorting fields retain the same single-border layout. Version 1.2.2 removes the forced desktop minimum height and adds a bottom safe zone so rail controls remain visible above taskbars on short or scaled displays. Version 1.2.3 adds independent show/hide controls to every passphrase and confirmation field without persisting the revealed value. Version 1.2.4 hardens local imports and previews, adds a production Content Security Policy, pins and audits dependencies, and adds integration checks for the concealed workspace. Version 1.2.5 restricts new file uploads to common document, data, and image types while blocking scripts, executables, archives, SVG, and unknown extensions.
 
 ## Run locally
 
@@ -83,7 +83,7 @@ This is the working production application. Notes and encrypted private-workspac
 ## Set up the concealed private workspace
 
 1. Open **Settings**.
-2. At the bottom, click the ordinary **Quiet Notes · Version 1.2.4** row five times.
+2. At the bottom, click the ordinary **Quiet Notes · Version 1.2.5** row five times.
 3. Set and confirm a passphrase of 8–1,024 characters.
 4. Close Settings.
 5. Create a completely blank new note.
@@ -110,7 +110,7 @@ No application can store a file on a PC while also storing no bytes anywhere on 
 - Losing the passphrase permanently loses access; there is no recovery key.
 - A compromised browser, malicious extension, keylogger, or malware running while the vault is unlocked can defeat client-side protection.
 - Ordinary notes are local but **not encrypted**. Only items placed inside the private workspace are encrypted.
-- Each private item is limited to 25 MB; portable backups are limited to 100 MB. Normal-note JSON imports are also capped at 100 MB. These limits help avoid excessive browser-memory use.
+- New uploads allow PDF, text/CSV/JSON/RTF, Office/OpenDocument files, and common images. Scripts, executables, SVG, archives, and unknown extensions are rejected. Each item is limited to 25 MB; portable backups and normal-note JSON imports are limited to 100 MB. Older encrypted backups remain restorable for compatibility.
 
 For stronger OS-level protection, combine this app with full-disk encryption (BitLocker, FileVault, or LUKS) and a trusted browser profile.
 
